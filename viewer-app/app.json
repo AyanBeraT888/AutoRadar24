@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Auto 24 — Viewer",
+    "slug": "auto24-viewer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "com.auto24.viewer",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#14181D"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "WAKE_LOCK",
+        "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+        "HIGH_SAMPLING_RATE_SENSORS",
+        "ACTIVITY_RECOGNITION",
+        "INTERNET"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Auto 24 requires location access to broadcast your vehicle position while on duty.",
+          "locationAlwaysPermission": "Auto 24 broadcasts your live position in the background even when your screen is locked.",
+          "locationWhenInUsePermission": "Auto 24 needs your location to display nearby autos and transmit live coordinates.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-asset",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#14181D"
+        }
+      ]
+    ]
+  }
+}

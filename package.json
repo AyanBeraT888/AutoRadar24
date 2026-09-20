@@ -1,0 +1,17 @@
+{
+  "name": "auto-24",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Auto 24 - Live Driver Location Tracking Platform",
+  "scripts": {
+    "start": "npx concurrently -n \"BACKEND,DRIVER-APP\" -c \"blue,green\" \"npm --prefix backend start\" \"npm --prefix driver-app start\"",
+    "dev": "npx concurrently -n \"BACKEND,DRIVER-APP\" -c \"blue,green\" \"npm --prefix backend run dev\" \"npm --prefix driver-app start\"",
+    "backend": "npm --prefix backend start",
+    "driver": "npm --prefix driver-app start",
+    "viewer": "npm --prefix viewer-app start",
+    "approve": "npm --prefix backend run approve",
+    "simulate": "npm --prefix backend run simulate",
+    "build:driver:apk": "npm --prefix driver-app run build:apk",
+    "build:viewer:apk": "npm --prefix viewer-app run build:apk"
+  }
+}

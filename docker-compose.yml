@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # 100% Free 24/7 MySQL Database Engine
+  mysql:
+    image: mysql:8.0
+    container_name: auto24-mysql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-auto24_secure_root_pass_2026}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-auto24}
+      MYSQL_USER: ${MYSQL_USER:-auto24_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-auto24_secure_pass_2026}
+    volumes:
+      # Persistent MySQL storage across restarts
+      - mysql-data:/var/lib/mysql
+    networks:
+      - auto24-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Node.js Live Tracking Backend
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: auto24-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_TYPE=mysql
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-auto24}
+      - MYSQL_USER=${MYSQL_USER:-auto24_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-auto24_secure_pass_2026}
+      - IDLE_TIMEOUT_SECONDS=15
+      - MOVEMENT_THRESHOLD_METERS=7
+      - SPEED_THRESHOLD_KMH=5
+      - JWT_SECRET=${JWT_SECRET:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      # Persistent file storage
+      - auto24-data:/app/backend/data
+    networks:
+      - auto24-network
+
+  # Caddy Automated HTTPS Reverse Proxy (Let's Encrypt / ZeroSSL)
+  caddy:
+    image: caddy:2-alpine
+    container_name: auto24-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN:-:80}
+      - ACME_EMAIL=${ACME_EMAIL:-admin@auto24.local}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - backend
+    networks:
+      - auto24-network
+
+volumes:
+  mysql-data:
+    driver: local
+  auto24-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
+
+networks:
+  auto24-network:
+    driver: bridge

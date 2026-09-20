@@ -1,0 +1,36 @@
+# Auto 24 - Caddy Automated HTTPS Reverse Proxy
+# Caddy automatically provisions and renews 100% free Let's Encrypt / ZeroSSL SSL certificates!
+
+{
+    # Global settings
+    # Set ACME email for Let's Encrypt renewal notices (optional)
+    email {$ACME_EMAIL:admin@auto24.local}
+}
+
+# If $DOMAIN is set (e.g. auto24.yourdomain.com or a free duckdns.org domain), Caddy will automatically
+# obtain trusted SSL certificates. If not set, it defaults to port 80 / 443 with local SSL.
+{$DOMAIN::80} {
+    # Reverse proxy to the backend Node.js container
+    reverse_proxy backend:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Modern high-efficiency compression
+    encode zstd gzip
+
+    # Production security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    log {
+        output stdout
+        format console
+    }
+}

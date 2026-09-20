@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Auto 24 — Live Driver Location</title>
+  <meta name="description" content="Live real-time driver tracking on OpenStreetMap" />
+  <link rel="icon" type="image/png" href="./assets/favicon.png" />
+
+  <!-- Google Fonts: Inter (Clean geometric sans-serif) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Local Leaflet CSS (Zero 3rd-party tracking warnings) -->
+  <link rel="stylesheet" href="./vendor/leaflet/leaflet.css" />
+
+  <!-- Google Model-Viewer for Interactive 3D glTF/GLB Rendering -->
+  <script type="module" src="./vendor/model-viewer/model-viewer.min.js"></script>
+
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+
+<body>
+  <!-- Fullscreen Map Container -->
+  <div id="map"></div>
+
+  <!-- Top Floating Homepage Bar (Active when NO vehicle is selected) -->
+  <header id="home-bar" class="hud-card home-card">
+    <div class="brand-group">
+      <div class="brand-badge">24</div>
+      <div class="driver-meta">
+        <h1 class="driver-name">Auto 24</h1>
+        <span class="vehicle-no">Nearby Live Autos</span>
+      </div>
+    </div>
+
+    <div class="home-actions">
+      <div id="nearby-count-badge" class="badge-nearby" title="Autos within current search radius">
+        <span class="status-dot green"></span>
+        <span id="nearby-count-text">Scanning...</span>
+      </div>
+      <button id="map-theme-btn" class="btn-icon" title="Toggle Map Style (Dark Radar / OSM Street)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+      <button id="settings-btn" class="btn-icon" title="Radius & Radar Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+          </path>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Floating Locate Me Button -->
+  <button id="locate-me-btn" class="fab-locate-btn" title="Center on My Location">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="4"></circle>
+      <path d="M12 2v3m0 14v3M2 12h3m14 0h3"></path>
+    </svg>
+  </button>
+
+  <!-- SINGLE FLIGHTRADAR24-STYLE VEHICLE PROFILE CARD (Replaces previous top & bottom cards) -->
+  <aside id="vehicle-profile-card" class="fr-card fr-hidden" aria-label="Live Vehicle Details">
+    <!-- Card Top Bar: Callsign, Owner, Watermark, and Close -->
+    <div class="fr-header">
+      <div class="fr-header-left">
+        <div class="fr-id-row">
+          <span id="fr-vehicle-no" class="fr-callsign">WB20B4455</span>
+          <span class="fr-tag fr-tag-brand">AUTO24</span>
+          <span id="fr-type-badge" class="fr-tag fr-tag-type">TOTO-EV</span>
+        </div>
+        <div class="fr-owner-row">
+          <span class="fr-owner-label">OWNER:</span>
+          <span id="fr-owner-name" class="fr-owner-name">Oishik Mondal</span>
+        </div>
+      </div>
+      <div class="fr-header-right">
+        <span class="fr-brand-watermark">auto<span class="gold">24</span></span>
+        <button id="fr-close-btn" class="fr-close-btn" title="Close vehicle view and return to map">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Graphical Picture of Toto / Auto Banner (3D GLB Interactive Model) -->
+    <div class="fr-image-banner">
+      <div id="fr-graphic-container" class="fr-graphic-display">
+        <model-viewer
+          id="fr-3d-model"
+          src="./assets/tuktuk_moving_yellow.glb"
+          alt="Auto 24 3D Toto Model"
+          auto-rotate
+          rotation-per-second="25deg"
+          camera-controls
+          touch-action="pan-y"
+          shadow-intensity="1.2"
+          shadow-softness="0.8"
+          exposure="1.1"
+          camera-orbit="35deg 75deg 3.5m"
+          interaction-prompt="none"
+          loading="eager"
+          class="fr-model-viewer"
+        >
+          <!-- 2D Poster image while 3D is loading or as fallback -->
+          <img id="fr-graphic-img" slot="poster" src="./assets/auto-3d-yellow.png" alt="Auto 3D Model" class="fr-graphic-img" />
+        </model-viewer>
+      </div>
+      
+      <!-- Overlay Carousel Controls & Credits -->
+      <div class="fr-banner-overlay">
+        <div class="fr-carousel-dots">
+          <button type="button" class="fr-dot active" data-slide="0" title="3D Auto Yellow Model"></button>
+          <button type="button" class="fr-dot" data-slide="1" title="3D Auto Red Model"></button>
+        </div>
+        <div class="fr-credit-tag">
+          <span id="fr-graphic-label">© Auto 24 • Interactive 3D</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toto Model Strip (Strictly includes Toto Model) -->
+    <div class="fr-model-bar">
+      <span class="fr-model-pill-label">TOTO MODEL</span>
+      <span id="fr-model-name" class="fr-model-pill-val">Mayuri Deluxe Electric Toto (E-Rickshaw)</span>
+    </div>
+
+    <!-- Flightradar24 Telemetry Split Block (Status & Speed) -->
+    <div class="fr-telemetry-split">
+      <div class="fr-split-box fr-box-left">
+        <div class="fr-box-code" id="fr-status-code">MOV</div>
+        <div class="fr-box-title" id="fr-status-text">MOVING</div>
+        <div class="fr-box-sub" id="fr-status-detail">TRACKING ACTIVE</div>
+      </div>
+
+      <div class="fr-split-center">
+        <div class="fr-center-badge" id="fr-center-icon-badge">
+          <img src="./assets/auto-3d-yellow.png" width="30" height="36" style="object-fit: contain;" alt="Auto" />
+        </div>
+      </div>
+
+      <div class="fr-split-box fr-box-right">
+        <div class="fr-box-code" id="fr-speed-val">0</div>
+        <div class="fr-box-title">KM/H</div>
+        <div class="fr-box-sub" id="fr-speed-sub">CURRENT SPEED</div>
+      </div>
+    </div>
+
+    <!-- Telemetry Details Matrix -->
+    <div class="fr-grid-details">
+      <div class="fr-grid-row">
+        <div class="fr-grid-cell">
+          <span class="fr-cell-label">LAST PING</span>
+          <span id="fr-metric-ping" class="fr-cell-value">Just now</span>
+        </div>
+        <div class="fr-grid-cell">
+          <span class="fr-cell-label">SIGNAL / TIMEOUT</span>
+          <span id="fr-metric-signal" class="fr-cell-value text-green">● Live (15s idle max)</span>
+        </div>
+      </div>
+      <div class="fr-grid-row">
+        <div class="fr-grid-cell">
+          <span class="fr-cell-label">GPS COORDINATES</span>
+          <span id="fr-metric-coords" class="fr-cell-value mono">12.9738° N, 77.5962° E</span>
+        </div>
+        <div class="fr-grid-cell">
+          <span class="fr-cell-label">HEADING / BEARING</span>
+          <span id="fr-metric-heading" class="fr-cell-value">0° (North)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Track Progress Bar (Flightradar flight-line style) -->
+    <div class="fr-track-container">
+      <div class="fr-track-bar">
+        <div id="fr-track-progress" class="fr-track-fill"></div>
+        <div id="fr-track-marker" class="fr-track-icon">
+          <img src="./assets/auto-3d-yellow.png" width="16" height="20" style="object-fit: contain;" alt="Marker" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="fr-actions-bar">
+      <button id="fr-recenter-btn" class="fr-btn fr-btn-primary" title="Center map on this vehicle">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 2v3m0 14v3M2 12h3m14 0h3"></path>
+        </svg>
+        <span>Recenter Vehicle</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Driver Selector Modal -->
+  <div id="driver-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Nearby Autos</h2>
+        <button id="close-modal-btn" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-search-box">
+        <input type="text" id="modal-search-input" placeholder="Search by vehicle no or driver name..." />
+      </div>
+      <div id="drivers-list" class="drivers-list">
+        <div class="loader-container">
+          <div class="spinner"></div>
+          <p>Loading nearby drivers...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="direct-id-form">
+          <input type="text" id="custom-id-input" placeholder="Or enter Driver ID (e.g. 5)" />
+          <button id="load-custom-id-btn" class="btn btn-primary">Track</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal (Radius & Radar options) -->
+  <div id="settings-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Radar Settings</h2>
+        <button id="close-settings-btn" class="modal-close">&times;</button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <span class="settings-label">SEARCH RADIUS</span>
+            <span id="radius-val-text" class="radius-value-pill">1.0 km</span>
+          </div>
+          <p class="settings-desc">Only show active autos operating within this distance from your location.</p>
+
+          <div class="radius-slider-group">
+            <input type="range" id="radius-slider" min="0.5" max="10" step="0.5" value="1.0" />
+            <div class="slider-marks">
+              <span>0.5 km</span>
+              <span>5 km</span>
+              <span>10 km</span>
+            </div>
+          </div>
+
+          <div class="radius-preset-chips">
+            <button type="button" class="preset-chip" data-radius="0.5">0.5 km</button>
+            <button type="button" class="preset-chip active" data-radius="1">1 km (Default)</button>
+            <button type="button" class="preset-chip" data-radius="2">2 km</button>
+            <button type="button" class="preset-chip" data-radius="5">5 km</button>
+            <button type="button" class="preset-chip" data-radius="all">Show All</button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-toggle-row">
+            <div>
+              <div class="toggle-title">Radar Perimeter Circle</div>
+              <div class="toggle-desc">Show your radius coverage zone on the map</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggle-radius-circle" checked />
+              <span class="slider-toggle"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="save-settings-btn" class="btn btn-primary" style="width: 100%;">Save & Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Local Leaflet JS -->
+  <script src="./vendor/leaflet/leaflet.js"></script>
+
+  <!-- Viewer App Logic -->
+  <script src="./js/app.js"></script>
+</body>
+
+</html>

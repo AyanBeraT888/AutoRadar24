@@ -1,0 +1,28 @@
+{
+  "name": "auto24-backend",
+  "version": "1.0.0",
+  "description": "Auto 24 Live Driver Tracking Backend",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "approve": "node src/approve-driver.js",
+    "simulate": "node scripts/simulate-driver.js",
+    "test:e2e": "node test/e2e.test.js"
+  },
+  "keywords": [
+    "live-tracking",
+    "auto24",
+    "gps",
+    "express",
+    "sqlite"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mysql2": "^3.24.4"
+  }
+}
