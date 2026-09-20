@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "Auto 24 — Viewer",
-    "slug": "auto24-viewer",
+    "name": "Auto 24",
+    "slug": "auto24",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "android": {
-      "package": "com.auto24.viewer",
+      "package": "com.auto24.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#14181D"
