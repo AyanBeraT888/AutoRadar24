@@ -8,10 +8,10 @@ services:
     restart: unless-stopped
     command: --default-authentication-plugin=mysql_native_password
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-auto24_secure_root_pass_2026}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-auto24}
       MYSQL_USER: ${MYSQL_USER:-auto24_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-auto24_secure_pass_2026}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
     volumes:
       # Persistent MySQL storage across restarts
       - mysql-data:/var/lib/mysql
@@ -38,7 +38,7 @@ services:
       - MYSQL_PORT=3306
       - MYSQL_DATABASE=${MYSQL_DATABASE:-auto24}
       - MYSQL_USER=${MYSQL_USER:-auto24_user}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-auto24_secure_pass_2026}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-}
       - IDLE_TIMEOUT_SECONDS=15
       - MOVEMENT_THRESHOLD_METERS=7
       - SPEED_THRESHOLD_KMH=5
