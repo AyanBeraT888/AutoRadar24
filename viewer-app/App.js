@@ -48,6 +48,27 @@ export default function App() {
   const [configVisible, setConfigVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(5);
+
+  // Auto-retry timer when connection to backend is interrupted
+  useEffect(() => {
+    let timer = null;
+    if (loadError && currentMode === 'passenger') {
+      setRetryCountdown(5);
+      timer = setInterval(() => {
+        setRetryCountdown((prev) => {
+          if (prev <= 1) {
+            handleReloadMap();
+            return 5;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [loadError, currentMode]);
 
   // Driver Mode State
   const [driverState, setDriverState] = useState(DRIVER_STATE.LOADING);
@@ -248,36 +269,69 @@ export default function App() {
       {/* ======================================================== */}
       {currentMode === 'passenger' && (
         <View style={styles.mapContainer}>
-          {/* Floating Glassmorphism Hamburger Button */}
+          {/* Floating Glassmorphism Beacon Mode Switch Button */}
           <View style={styles.floatingHeader}>
             <TouchableOpacity
-              style={styles.floatingMenuBtn}
+              style={styles.floatingBeaconBtn}
               onPress={() => setSidebarVisible(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.floatingMenuIcon}>☰</Text>
+              <View style={styles.beaconDotWrapper}>
+                <View style={styles.beaconDotPulse} />
+                <Text style={styles.beaconIconEmoji}>📡</Text>
+              </View>
+              <View style={styles.beaconTextCol}>
+                <Text style={styles.beaconModeText}>PASSENGER RADAR</Text>
+                <Text style={styles.beaconSubText}>Tap beacon to switch mode</Text>
+              </View>
             </TouchableOpacity>
           </View>
 
-          {/* Main Leaflet Map WebView */}
+          {/* Main Leaflet Map WebView & Fallback Card */}
           {loadError ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorTitle}>Cannot Reach Backend</Text>
-              <Text style={styles.errorDesc}>
-                Make sure the backend server is running on:{'\n'}
-                <Text style={styles.errorUrl}>{serverUrl}</Text>
-              </Text>
+            <View style={styles.fallbackCardWrapper}>
+              <View style={styles.fallbackCard}>
+                {/* Glowing Radar Offline Beacon */}
+                <View style={styles.fallbackRadarIconWrapper}>
+                  <View style={styles.fallbackRadarOuterRing} />
+                  <Text style={styles.fallbackRadarEmoji}>📡</Text>
+                </View>
 
-              <TouchableOpacity style={styles.retryBtn} onPress={handleReloadMap}>
-                <Text style={styles.retryBtnText}>Retry Connection</Text>
-              </TouchableOpacity>
+                <View style={styles.fallbackBadge}>
+                  <View style={styles.fallbackBadgeDot} />
+                  <Text style={styles.fallbackBadgeText}>RADAR OFFLINE • CANNOT REACH SERVER</Text>
+                </View>
 
-              <TouchableOpacity
-                style={styles.changeServerBtn}
-                onPress={() => setConfigVisible(true)}
-              >
-                <Text style={styles.changeServerText}>Change Server Address</Text>
-              </TouchableOpacity>
+                <Text style={styles.fallbackHeading}>Radar Signal Interrupted</Text>
+                <Text style={styles.fallbackSubtext}>
+                  Unable to establish a live telemetry connection with the Auto 24 backend.
+                </Text>
+
+                <View style={styles.fallbackDiagBox}>
+                  <Text style={styles.fallbackDiagLabel}>TARGET SERVER</Text>
+                  <Text style={styles.fallbackDiagUrl} numberOfLines={1}>{serverUrl}</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.fallbackPrimaryBtn}
+                  onPress={handleReloadMap}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.fallbackPrimaryBtnText}>⚡ Re-Scan Radar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.fallbackSecondaryBtn}
+                  onPress={() => setConfigVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.fallbackSecondaryBtnText}>⚙️ Change Server Address</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.fallbackCountdownText}>
+                  Auto-retrying in {retryCountdown}s...
+                </Text>
+              </View>
             </View>
           ) : (
             <WebView
@@ -289,9 +343,15 @@ export default function App() {
               geolocationEnabled={true}
               startInLoadingState={true}
               renderLoading={() => (
-                <View style={styles.loadingOverlay}>
-                  <ActivityIndicator size="large" color={colors.brandGold} />
-                  <Text style={styles.loadingText}>Connecting to Auto 24 Radar...</Text>
+                <View style={styles.skeletonLoadingOverlay}>
+                  <View style={styles.skeletonSonarContainer}>
+                    <View style={styles.skeletonSonarRing1} />
+                    <View style={styles.skeletonSonarRing2} />
+                    <Text style={styles.skeletonRadarCenterEmoji}>📡</Text>
+                  </View>
+                  <Text style={styles.skeletonLoadingTitle}>CALIBRATING LIVE GPS RADAR</Text>
+                  <Text style={styles.skeletonLoadingSub}>Acquiring live satellite feed & nearby autos...</Text>
+                  <ActivityIndicator size="small" color={colors.brandGold} style={{ marginTop: 14 }} />
                 </View>
               )}
               onLoadStart={() => setIsLoading(true)}
@@ -428,25 +488,56 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     pointerEvents: 'box-none',
   },
-  floatingMenuBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(22, 27, 34, 0.90)',
+  floatingBeaconBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 24,
+    backgroundColor: 'rgba(22, 27, 34, 0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: colors.brandGold,
+    shadowColor: colors.brandGold,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
+    gap: 8,
+  },
+  beaconDotWrapper: {
+    position: 'relative',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 204, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
   },
-  floatingMenuIcon: {
+  beaconDotPulse: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.brandGold,
+    opacity: 0.6,
+  },
+  beaconIconEmoji: {
+    fontSize: 14,
+  },
+  beaconTextCol: {
+    flexDirection: 'column',
+  },
+  beaconModeText: {
     color: colors.brandGold,
-    fontSize: 22,
+    fontSize: 12,
     fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  beaconSubText: {
+    color: colors.textMuted,
+    fontSize: 9,
+    fontWeight: '600',
   },
   webView: {
     flex: 1,
@@ -459,58 +550,194 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10,
   },
-  errorContainer: {
+  fallbackCardWrapper: {
     flex: 1,
+    backgroundColor: '#080C14',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  fallbackCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: 'rgba(17, 24, 39, 0.96)',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+    padding: 26,
+    alignItems: 'center',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  fallbackRadarIconWrapper: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+    position: 'relative',
+  },
+  fallbackRadarOuterRing: {
+    position: 'absolute',
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    borderStyle: 'dashed',
+  },
+  fallbackRadarEmoji: {
+    fontSize: 28,
+  },
+  fallbackBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    marginBottom: 10,
+    gap: 6,
+  },
+  fallbackBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F59E0B',
+  },
+  fallbackBadgeText: {
+    color: '#FBBF24',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  fallbackHeading: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  fallbackSubtext: {
+    fontSize: 13,
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  fallbackDiagBox: {
+    width: '100%',
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 18,
+  },
+  fallbackDiagLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#64748B',
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  fallbackDiagUrl: {
+    fontSize: 12,
+    color: '#F59E0B',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  fallbackPrimaryBtn: {
+    width: '100%',
+    backgroundColor: colors.brandGold,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+    shadowColor: colors.brandGold,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  fallbackPrimaryBtnText: {
+    color: '#0B0F17',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  fallbackSecondaryBtn: {
+    width: '100%',
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    alignItems: 'center',
+  },
+  fallbackSecondaryBtnText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  fallbackCountdownText: {
+    marginTop: 12,
+    fontSize: 11,
+    color: '#64748B',
+  },
+  skeletonLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#080C14',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: '#0D1117',
+    zIndex: 10,
   },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: 8,
-  },
-  errorDesc: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  errorUrl: {
-    color: colors.brandGold,
-    fontWeight: '600',
-  },
-  retryBtn: {
-    backgroundColor: colors.brandGold,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    marginBottom: 12,
-    width: '100%',
-    maxWidth: 280,
+  skeletonSonarContainer: {
+    width: 90,
+    height: 90,
+    justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 16,
+    position: 'relative',
   },
-  retryBtnText: {
-    color: '#0D1117',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  changeServerBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+  skeletonSonarRing1: {
+    position: 'absolute',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
-    width: '100%',
-    maxWidth: 280,
-    alignItems: 'center',
+    borderColor: 'rgba(255, 204, 0, 0.4)',
   },
-  changeServerText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
+  skeletonSonarRing2: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.2)',
+    borderStyle: 'dashed',
+  },
+  skeletonRadarCenterEmoji: {
+    fontSize: 26,
+  },
+  skeletonLoadingTitle: {
+    color: colors.brandGold,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginBottom: 6,
+  },
+  skeletonLoadingSub: {
+    color: '#94A3B8',
+    fontSize: 12,
+    textAlign: 'center',
   },
 });

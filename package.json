@@ -12,6 +12,8 @@
     "viewer": "npm --prefix viewer-app start",
     "approve": "npm --prefix backend run approve",
     "simulate": "npm --prefix backend run simulate",
+    "generate-secrets": "npm --prefix backend run generate-secrets",
+    "tunnel": "npx cloudflared tunnel --url http://localhost:3000",
     "build:driver:apk": "npm --prefix driver-app run build:apk",
     "build:viewer:apk": "npm --prefix viewer-app run build:apk"
   },

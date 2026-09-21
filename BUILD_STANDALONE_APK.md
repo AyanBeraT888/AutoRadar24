@@ -63,6 +63,22 @@ The Passenger App contains the live radar map, 3D interactive Tuk-Tuk models, an
 
 ---
 
+## 🌐 Auto-Configure Live Server URL Into Your APK
+
+By default, the apps will connect to the server configured in the app settings, or your `EXPO_PUBLIC_API_URL`. To bake your public cloud URL (e.g. from `npm run tunnel` or Render) directly into the APK so users never have to type an IP address:
+
+```bash
+# Example building with live Cloudflare Tunnel URL:
+EXPO_PUBLIC_API_URL="https://your-tunnel.trycloudflare.com" npm run build:viewer:apk
+EXPO_PUBLIC_API_URL="https://your-tunnel.trycloudflare.com" npm run build:driver:apk
+```
+Or on Windows PowerShell:
+```powershell
+$env:EXPO_PUBLIC_API_URL="https://your-tunnel.trycloudflare.com"; npm run build:viewer:apk
+```
+
+---
+
 ## Step 4: Installing on Android Devices
 
 1. Open the download link on your phone (or download the `.apk` on your PC and send it via WhatsApp or USB).

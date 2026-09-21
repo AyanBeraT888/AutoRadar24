@@ -16,12 +16,14 @@ const KEYS = {
   ACTIVE_MODE: '@auto24_active_mode', // 'passenger' | 'driver'
 };
 
-// Default server:
-// On Android Emulator: http://10.0.2.2:3000
-// On iOS Simulator / Web: http://localhost:3000
-export const DEFAULT_SERVER_URL = Platform.OS === 'android'
-  ? 'http://10.0.2.2:3000'
-  : 'http://localhost:3000';
+// Default server resolution:
+// 1. Inlined at build-time from EXPO_PUBLIC_API_URL (e.g. your Cloudflare Tunnel or Render URL)
+// 2. Android Emulator fallback: http://10.0.2.2:3000
+// 3. iOS Simulator / Web fallback: http://localhost:3000
+export const DEFAULT_SERVER_URL =
+  (process.env.EXPO_PUBLIC_API_URL && process.env.EXPO_PUBLIC_API_URL.trim())
+    ? process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '')
+    : (Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000');
 
 export async function getServerUrl() {
   try {

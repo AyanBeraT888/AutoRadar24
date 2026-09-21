@@ -8,6 +8,7 @@
     "dev": "node --watch src/server.js",
     "approve": "node src/approve-driver.js",
     "simulate": "node scripts/simulate-driver.js",
+    "generate-secrets": "node scripts/generate-secrets.js",
     "test:e2e": "node test/e2e.test.js"
   },
   "keywords": [

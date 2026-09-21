@@ -9,7 +9,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
 
-const useMySQL =
+let useMySQL =
   process.env.DB_TYPE === 'mysql' ||
   Boolean(process.env.MYSQL_HOST) ||
   Boolean(process.env.DATABASE_URL);
@@ -18,68 +18,38 @@ let pool = null;
 let sqliteDb = null;
 
 // ==========================================
-// 1. MYSQL ENGINE INITIALIZATION (Cloud 24/7)
+// 1. DATABASE ENGINE INITIALIZATION
 // ==========================================
-if (useMySQL) {
-  const mysql = require('mysql2/promise');
 
-  const config = process.env.DATABASE_URL
-    ? {
-        uri: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: true },
-        waitForConnections: true,
-        connectionLimit: 15,
-        queueLimit: 0,
-      }
-    : {
-        host: process.env.MYSQL_HOST || 'localhost',
-        port: parseInt(process.env.MYSQL_PORT || '3306', 10),
-        user: process.env.MYSQL_USER || 'root',
-        password: process.env.MYSQL_PASSWORD || '',
-        database: process.env.MYSQL_DATABASE || 'auto24',
-        waitForConnections: true,
-        connectionLimit: 15,
-        queueLimit: 0,
-        ssl: process.env.MYSQL_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
-      };
-
-  pool = mysql.createPool(config);
-
-  // Initialize MySQL Schema
-  (async () => {
-    try {
-      const conn = await pool.getConnection();
-      await conn.query(`
-        CREATE TABLE IF NOT EXISTS drivers (
-          driver_id INT AUTO_INCREMENT PRIMARY KEY,
-          name VARCHAR(255) NOT NULL,
-          phone VARCHAR(50) NOT NULL,
-          vehicle_no VARCHAR(50) NOT NULL,
-          device_id VARCHAR(100) UNIQUE NOT NULL,
-          status VARCHAR(20) DEFAULT 'pending',
-          lat DOUBLE NULL,
-          lng DOUBLE NULL,
-          moving_status VARCHAR(20) DEFAULT 'idle',
-          last_updated BIGINT NULL,
-          created_at BIGINT NOT NULL,
-          INDEX idx_drivers_device_id (device_id),
-          INDEX idx_drivers_status (status)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-      `);
-      conn.release();
-      console.log(`[Auto 24 Database] Connected to 24/7 Cloud MySQL on ${config.host || 'remote'}`);
-    } catch (err) {
-      console.error('[Auto 24 Database] MySQL initialization error:', err.message);
-    }
-  })();
-} else {
-  // ==========================================
-  // 2. SQLITE ENGINE INITIALIZATION (Offline/Dev)
-  // ==========================================
+function initSQLite() {
+  if (sqliteDb) return;
   const { DatabaseSync } = require('node:sqlite');
-  const DATA_DIR = path.join(__dirname, '../../data');
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  const os = require('node:os');
+
+  let DATA_DIR = process.env.DATA_DIR;
+  if (!DATA_DIR) {
+    const candidate1 = path.join(__dirname, '../data');
+    const candidate2 = path.join(__dirname, '../../data');
+    if (fs.existsSync(candidate1)) {
+      DATA_DIR = candidate1;
+    } else if (fs.existsSync(candidate2)) {
+      DATA_DIR = candidate2;
+    } else {
+      try {
+        fs.mkdirSync(candidate1, { recursive: true });
+        DATA_DIR = candidate1;
+      } catch {
+        DATA_DIR = path.join(os.tmpdir(), 'auto24_data');
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+    }
+  } else if (!fs.existsSync(DATA_DIR)) {
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    } catch {
+      DATA_DIR = path.join(os.tmpdir(), 'auto24_data');
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
   }
 
   const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, 'auto24.db');
@@ -104,6 +74,69 @@ if (useMySQL) {
     CREATE INDEX IF NOT EXISTS idx_drivers_device_id ON drivers(device_id);
     CREATE INDEX IF NOT EXISTS idx_drivers_status ON drivers(status);
   `);
+  console.log(`[Auto 24 Database] Activated Embedded SQLite on ${DB_PATH}`);
+}
+
+if (useMySQL) {
+  const mysql = require('mysql2/promise');
+
+  const config = process.env.DATABASE_URL
+    ? {
+        uri: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: true },
+        waitForConnections: true,
+        connectionLimit: 15,
+        queueLimit: 0,
+        connectTimeout: 5000,
+      }
+    : {
+        host: process.env.MYSQL_HOST || 'localhost',
+        port: parseInt(process.env.MYSQL_PORT || '3306', 10),
+        user: process.env.MYSQL_USER || 'root',
+        password: process.env.MYSQL_PASSWORD || '',
+        database: process.env.MYSQL_DATABASE || 'auto24',
+        waitForConnections: true,
+        connectionLimit: 15,
+        queueLimit: 0,
+        connectTimeout: 5000,
+        ssl: process.env.MYSQL_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+      };
+
+  pool = mysql.createPool(config);
+
+  // Initialize MySQL Schema with automatic SQLite fallback if unreachable
+  (async () => {
+    try {
+      const conn = await pool.getConnection();
+      await conn.query(`
+        CREATE TABLE IF NOT EXISTS drivers (
+          driver_id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          phone VARCHAR(50) NOT NULL,
+          vehicle_no VARCHAR(50) NOT NULL,
+          device_id VARCHAR(100) UNIQUE NOT NULL,
+          status VARCHAR(20) DEFAULT 'pending',
+          lat DOUBLE NULL,
+          lng DOUBLE NULL,
+          moving_status VARCHAR(20) DEFAULT 'idle',
+          last_updated BIGINT NULL,
+          created_at BIGINT NOT NULL,
+          INDEX idx_drivers_device_id (device_id),
+          INDEX idx_drivers_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+      conn.release();
+      console.log(`[Auto 24 Database] Connected to 24/7 Cloud MySQL on ${config.host || 'remote'}`);
+    } catch (err) {
+      console.error('[Auto 24 Database] MySQL failed to connect:', err.message);
+      console.log('[Auto 24 Database] Gracefully switching to Embedded SQLite fallback...');
+      useMySQL = false;
+      pool = null;
+      initSQLite();
+    }
+  })();
+} else {
+  initSQLite();
 }
 
 // ==========================================

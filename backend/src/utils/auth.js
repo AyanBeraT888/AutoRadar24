@@ -7,17 +7,32 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const WEAK_SECRETS = new Set([
+  'secret',
+  'changeme',
+  'password',
+  '12345678',
+  'jwt_secret',
+  'change_this_to_a_random_64_character_hex_secret',
+  'default_secret',
+]);
+
 // Resolve or persist JWT_SECRET
 function resolveSecret() {
-  if (process.env.JWT_SECRET && process.env.JWT_SECRET.trim().length >= 16) {
-    return process.env.JWT_SECRET.trim();
+  const envSecret = process.env.JWT_SECRET ? process.env.JWT_SECRET.trim() : '';
+  if (envSecret && envSecret.length >= 16 && !WEAK_SECRETS.has(envSecret.toLowerCase())) {
+    return envSecret;
+  }
+
+  if (envSecret && (envSecret.length < 16 || WEAK_SECRETS.has(envSecret.toLowerCase()))) {
+    console.warn('[Auto 24 Security] WARNING: Weak or placeholder JWT_SECRET detected in environment! Falling back to cryptographically random secret.');
   }
 
   const secretFile = path.join(__dirname, '../../data/.jwt_secret');
   try {
     if (fs.existsSync(secretFile)) {
       const secret = fs.readFileSync(secretFile, 'utf8').trim();
-      if (secret.length >= 32) return secret;
+      if (secret.length >= 32 && !WEAK_SECRETS.has(secret.toLowerCase())) return secret;
     }
   } catch (err) {}
 

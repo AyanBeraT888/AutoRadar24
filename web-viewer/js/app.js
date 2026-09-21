@@ -4,8 +4,9 @@
  * and 3D Indian Auto Rickshaw markers (matching user reference image).
  */
 
-// Backend API configuration
-const API_BASE = window.location.origin.includes('3000')
+// Backend API configuration:
+// Dynamic origin resolution supporting any port, domain, reverse proxy (Caddy/Nginx), or SSL.
+const API_BASE = (typeof window !== 'undefined' && window.location.origin && window.location.origin !== 'null' && !window.location.protocol.startsWith('file'))
   ? window.location.origin
   : 'http://localhost:3000';
 
@@ -38,7 +39,36 @@ const els = {
   nearbyCountText: document.getElementById('nearby-count-text'),
   nearbyCountBadge: document.getElementById('nearby-count-badge'),
   locateMeBtn: document.getElementById('locate-me-btn'),
-  mapThemeBtn: document.getElementById('map-theme-btn'),
+
+  // Beacon Mode Switcher & Driver Console Elements
+  beaconModeBtn: document.getElementById('beacon-mode-btn'),
+  beaconModeLabel: document.getElementById('beacon-mode-label'),
+  driverBroadcastBanner: document.getElementById('driver-broadcast-banner'),
+  bannerDriverDetails: document.getElementById('banner-driver-details'),
+  bannerOpenConsoleBtn: document.getElementById('banner-open-console-btn'),
+
+  // Mode Switcher Modal
+  modeModal: document.getElementById('mode-modal'),
+  closeModeModalBtn: document.getElementById('close-mode-modal-btn'),
+  saveModeModalBtn: document.getElementById('save-mode-modal-btn'),
+  tabPassenger: document.getElementById('tab-passenger'),
+  tabDriver: document.getElementById('tab-driver'),
+  passengerModeView: document.getElementById('passenger-mode-view'),
+  driverModeView: document.getElementById('driver-mode-view'),
+  switchToDriverBtn: document.getElementById('switch-to-driver-btn'),
+  switchToPassengerBtn: document.getElementById('switch-to-passenger-btn'),
+  passengerFleetCount: document.getElementById('passenger-fleet-count'),
+  passengerRadiusDisplay: document.getElementById('passenger-radius-display'),
+
+  // Driver Console Cockpit Elements
+  driverInputVehicle: document.getElementById('driver-input-vehicle'),
+  driverInputName: document.getElementById('driver-input-name'),
+  driverToggleBroadcastBtn: document.getElementById('driver-toggle-broadcast-btn'),
+  driverBroadcastBtnText: document.getElementById('driver-broadcast-btn-text'),
+  telStatus: document.getElementById('tel-status'),
+  telSpeed: document.getElementById('tel-speed'),
+  telAccuracy: document.getElementById('tel-accuracy'),
+  telPings: document.getElementById('tel-pings'),
 
   // Single Flightradar24 Vehicle Profile Card
   frCard: document.getElementById('vehicle-profile-card'),
@@ -80,7 +110,25 @@ const els = {
   radiusSlider: document.getElementById('radius-slider'),
   radiusValText: document.getElementById('radius-val-text'),
   toggleRadiusCircle: document.getElementById('toggle-radius-circle'),
+
+  // Skeletal Map & Offline Fallback Elements
+  mapSkeleton: document.getElementById('map-skeleton'),
+  skeletonStatusText: document.getElementById('skeleton-status-text'),
+  fallbackScreen: document.getElementById('offline-fallback-screen'),
+  fallbackTargetUrl: document.getElementById('fallback-target-url'),
+  fallbackReconnectBtn: document.getElementById('fallback-reconnect-btn'),
+  fallbackCountdownText: document.getElementById('fallback-countdown-text'),
+  networkToast: document.getElementById('network-toast-banner'),
+  toastRetryBtn: document.getElementById('toast-retry-btn'),
+  toastMsg: document.getElementById('network-toast-msg'),
 };
+
+// Network & Fallback State
+let hasLoadedSuccessfully = false;
+let consecutiveErrors = 0;
+let retryCountdown = 5;
+let retryCountdownTimer = null;
+let slowNetworkTimer = null;
 
 /**
  * Compute Haversine distance between two coordinates in km
@@ -160,12 +208,10 @@ function getVehicleModelName(driver) {
 function initMap() {
   map = L.map('map', {
     zoomControl: false,
-    attributionControl: true,
+    attributionControl: false,
   }).setView([12.9716, 77.5946], 14);
 
   setMapTheme(isDarkMap);
-
-  L.control.zoom({ position: 'topright' }).addTo(map);
 
   map.on('dragstart', () => {
     autoRecenter = false;
@@ -412,6 +458,111 @@ function createVehicleIcon(movingStatus, vehicleNo, isSelected = false) {
 }
 
 /**
+ * Dismiss Skeletal Map Animation
+ */
+function dismissSkeletonMap() {
+  if (els.mapSkeleton && !els.mapSkeleton.classList.contains('hidden')) {
+    setTimeout(() => {
+      els.mapSkeleton.classList.add('hidden');
+    }, 300);
+    if (slowNetworkTimer) clearTimeout(slowNetworkTimer);
+  }
+}
+
+/**
+ * Show Fullscreen Fallback Screen
+ */
+function showFallbackScreen(errMsg = '') {
+  dismissSkeletonMap();
+  if (els.fallbackScreen) {
+    els.fallbackScreen.classList.remove('hidden');
+    if (els.fallbackTargetUrl) {
+      els.fallbackTargetUrl.textContent = API_BASE || window.location.origin;
+    }
+    startFallbackCountdown();
+  }
+}
+
+/**
+ * Hide Fullscreen Fallback Screen
+ */
+function hideFallbackScreen() {
+  if (els.fallbackScreen) {
+    els.fallbackScreen.classList.add('hidden');
+    if (retryCountdownTimer) {
+      clearInterval(retryCountdownTimer);
+      retryCountdownTimer = null;
+    }
+  }
+}
+
+/**
+ * Show / Hide Floating Network Toast Banner
+ */
+function showNetworkToast(msg = 'Reconnecting to Auto 24 radar...') {
+  if (els.networkToast) {
+    if (els.toastMsg) els.toastMsg.textContent = msg;
+    els.networkToast.classList.remove('hidden');
+  }
+}
+
+function hideNetworkToast() {
+  if (els.networkToast) {
+    els.networkToast.classList.add('hidden');
+  }
+}
+
+/**
+ * Auto-retry Countdown Manager
+ */
+function startFallbackCountdown() {
+  if (retryCountdownTimer) clearInterval(retryCountdownTimer);
+  retryCountdown = 5;
+  if (els.fallbackCountdownText) {
+    els.fallbackCountdownText.textContent = `Auto-retrying in ${retryCountdown} seconds...`;
+  }
+  retryCountdownTimer = setInterval(() => {
+    retryCountdown--;
+    if (retryCountdown <= 0) {
+      clearInterval(retryCountdownTimer);
+      retryCountdownTimer = null;
+      retryConnection();
+    } else if (els.fallbackCountdownText) {
+      els.fallbackCountdownText.textContent = `Auto-retrying in ${retryCountdown} seconds...`;
+    }
+  }, 1000);
+}
+
+/**
+ * Manual or Automatic Reconnect Attempt
+ */
+async function retryConnection() {
+  const btnText = document.getElementById('fallback-reconnect-btn-text');
+  if (btnText) btnText.textContent = 'Scanning Radar...';
+  if (els.fallbackReconnectBtn) els.fallbackReconnectBtn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/health`, { cache: 'no-cache' });
+    if (res.ok) {
+      hideFallbackScreen();
+      hideNetworkToast();
+      consecutiveErrors = 0;
+      hasLoadedSuccessfully = true;
+      await fetchNearbyVehicles();
+      if (btnText) btnText.textContent = 'Re-Scan Network';
+      if (els.fallbackReconnectBtn) els.fallbackReconnectBtn.disabled = false;
+      return;
+    }
+  } catch (e) {
+    console.warn('[Auto 24] Reconnect attempt failed:', e.message);
+  }
+
+  if (btnText) btnText.textContent = 'Re-Scan Network';
+  if (els.fallbackReconnectBtn) els.fallbackReconnectBtn.disabled = false;
+  startFallbackCountdown();
+}
+
+/**
  * Fetch and plot active vehicles within radius
  */
 async function fetchNearbyVehicles() {
@@ -420,6 +571,12 @@ async function fetchNearbyVehicles() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const drivers = await res.json();
     allDriversList = drivers || [];
+
+    hasLoadedSuccessfully = true;
+    consecutiveErrors = 0;
+    dismissSkeletonMap();
+    hideFallbackScreen();
+    hideNetworkToast();
 
     let countInRadius = 0;
     const currentRenderedIds = new Set();
@@ -479,8 +636,18 @@ async function fetchNearbyVehicles() {
         els.nearbyCountText.textContent = `${countInRadius} ${countInRadius === 1 ? 'Auto' : 'Autos'} within ${radiusStr}`;
       }
     }
+
+    if (els.passengerFleetCount) {
+      els.passengerFleetCount.textContent = `${countInRadius} active`;
+    }
   } catch (err) {
+    consecutiveErrors++;
     console.warn('[Viewer] Could not refresh nearby autos:', err.message);
+    if (!hasLoadedSuccessfully) {
+      showFallbackScreen(err.message);
+    } else if (consecutiveErrors >= 2) {
+      showNetworkToast('⚡ Signal Lost • Auto-reconnecting to radar...');
+    }
   }
 }
 
@@ -921,12 +1088,6 @@ function setupEventListeners() {
     });
   }
 
-  if (els.mapThemeBtn) {
-    els.mapThemeBtn.addEventListener('click', () => {
-      setMapTheme(!isDarkMap);
-    });
-  }
-
   if (els.nearbyCountBadge) els.nearbyCountBadge.addEventListener('click', openDriverModal);
   if (els.closeModalBtn) els.closeModalBtn.addEventListener('click', () => els.modal.classList.add('hidden'));
 
@@ -947,6 +1108,254 @@ function setupEventListeners() {
       }
     });
   }
+
+  if (els.fallbackReconnectBtn) {
+    els.fallbackReconnectBtn.addEventListener('click', () => {
+      retryConnection();
+    });
+  }
+
+  if (els.toastRetryBtn) {
+    els.toastRetryBtn.addEventListener('click', () => {
+      retryConnection();
+    });
+  }
+
+  // Network State Change Listeners
+  window.addEventListener('online', () => {
+    hideNetworkToast();
+    retryConnection();
+  });
+
+  window.addEventListener('offline', () => {
+    if (!hasLoadedSuccessfully) {
+      showFallbackScreen('Device network is offline');
+    } else {
+      showNetworkToast('⚡ Network Offline • Attempting to reconnect...');
+    }
+  });
+}
+
+// =========================================================
+// TRANSIT MODE & DRIVER BEACON BROADCASTING LOGIC
+// =========================================================
+
+let currentAppMode = localStorage.getItem('auto24_active_mode') || 'passenger';
+let isDriverBroadcasting = false;
+let driverWatchId = null;
+let broadcastPingCount = 0;
+let driverDeviceId = localStorage.getItem('auto24_driver_device_id');
+if (!driverDeviceId) {
+  driverDeviceId = 'dev_web_' + Math.random().toString(36).substring(2, 11);
+  localStorage.setItem('auto24_driver_device_id', driverDeviceId);
+}
+let registeredDriverId = localStorage.getItem('auto24_registered_driver_id');
+
+function syncModeUI() {
+  const isDriver = currentAppMode === 'driver';
+  if (els.beaconModeBtn) {
+    els.beaconModeBtn.classList.toggle('driver-active', isDriver);
+  }
+  if (els.beaconModeLabel) {
+    els.beaconModeLabel.textContent = isDriver ? 'Driver' : 'Passenger';
+  }
+  if (els.tabPassenger && els.tabDriver) {
+    els.tabPassenger.classList.toggle('active', !isDriver);
+    els.tabDriver.classList.toggle('active', isDriver);
+  }
+  if (els.passengerModeView && els.driverModeView) {
+    els.passengerModeView.classList.toggle('hidden', isDriver);
+    els.driverModeView.classList.toggle('hidden', !isDriver);
+  }
+  if (els.passengerRadiusDisplay) {
+    els.passengerRadiusDisplay.textContent = searchRadiusKm >= 999 ? 'All Active' : `${searchRadiusKm.toFixed(1)} km`;
+  }
+  if (els.driverBroadcastBanner) {
+    els.driverBroadcastBanner.classList.toggle('hidden', !isDriverBroadcasting);
+  }
+}
+
+function setAppMode(mode) {
+  currentAppMode = mode;
+  localStorage.setItem('auto24_active_mode', mode);
+  syncModeUI();
+}
+
+async function registerDriverIfNeeded() {
+  const vehicle = (els.driverInputVehicle?.value || 'WB20B4455').trim().toUpperCase();
+  const name = (els.driverInputName?.value || 'Oishik Mondal').trim();
+  
+  try {
+    const res = await fetch(`${API_BASE}/register-driver`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        phone: '9876543210',
+        vehicle_no: vehicle,
+        device_id: driverDeviceId,
+      }),
+    });
+    const data = await res.json();
+    if (data && data.driver && data.driver.driver_id) {
+      registeredDriverId = data.driver.driver_id;
+      localStorage.setItem('auto24_registered_driver_id', String(registeredDriverId));
+      return registeredDriverId;
+    }
+  } catch (e) {
+    console.warn('[Driver] Registration check fallback:', e);
+  }
+  return registeredDriverId || 1;
+}
+
+async function broadcastDriverPosition(pos) {
+  if (!pos || !pos.coords) return;
+  const { latitude, longitude, speed, accuracy } = pos.coords;
+
+  broadcastPingCount++;
+  if (els.telPings) els.telPings.textContent = String(broadcastPingCount);
+  if (els.telSpeed) els.telSpeed.textContent = speed ? `${Math.round(speed * 3.6)} km/h` : '0 km/h';
+  if (els.telAccuracy) els.telAccuracy.textContent = accuracy ? `±${Math.round(accuracy)}m` : '--';
+
+  const driverId = registeredDriverId || (await registerDriverIfNeeded());
+  try {
+    const res = await fetch(`${API_BASE}/drivers/${driverId}/location`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lat: latitude,
+        lng: longitude,
+        device_id: driverDeviceId,
+        speed: speed || 0,
+        accuracy: accuracy || 0,
+      }),
+    });
+    if (res.ok) {
+      if (els.telStatus) {
+        els.telStatus.textContent = 'ONLINE';
+        els.telStatus.className = 'telemetry-val on';
+      }
+      if (els.bannerDriverDetails) {
+        const vehicle = els.driverInputVehicle?.value || 'WB20B4455';
+        els.bannerDriverDetails.textContent = `${vehicle} • Telemetry broadcast active (ping #${broadcastPingCount})`;
+      }
+    }
+  } catch (err) {
+    console.warn('[Driver] Broadcast sync error:', err);
+  }
+}
+
+function startDriverBroadcasting() {
+  if (!navigator.geolocation) {
+    alert('Geolocation is not supported by your browser. Please use a modern browser to broadcast.');
+    return;
+  }
+
+  isDriverBroadcasting = true;
+  broadcastPingCount = 0;
+  if (els.driverToggleBroadcastBtn) {
+    els.driverToggleBroadcastBtn.classList.add('broadcasting');
+  }
+  if (els.driverBroadcastBtnText) {
+    els.driverBroadcastBtnText.textContent = 'STOP TRANSMITTING / GO OFFLINE';
+  }
+  if (els.telStatus) {
+    els.telStatus.textContent = 'CONNECTING...';
+    els.telStatus.className = 'telemetry-val on';
+  }
+
+  registerDriverIfNeeded();
+
+  driverWatchId = navigator.geolocation.watchPosition(
+    (pos) => broadcastDriverPosition(pos),
+    (err) => {
+      console.warn('[Driver] watchPosition error:', err);
+      if (els.telStatus) {
+        els.telStatus.textContent = 'GPS BLOCKED';
+        els.telStatus.className = 'telemetry-val off';
+      }
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
+  );
+
+  syncModeUI();
+}
+
+function stopDriverBroadcasting() {
+  isDriverBroadcasting = false;
+  if (driverWatchId !== null) {
+    navigator.geolocation.clearWatch(driverWatchId);
+    driverWatchId = null;
+  }
+  if (els.driverToggleBroadcastBtn) {
+    els.driverToggleBroadcastBtn.classList.remove('broadcasting');
+  }
+  if (els.driverBroadcastBtnText) {
+    els.driverBroadcastBtnText.textContent = 'START TRANSMITTING / GO ONLINE';
+  }
+  if (els.telStatus) {
+    els.telStatus.textContent = 'OFFLINE';
+    els.telStatus.className = 'telemetry-val off';
+  }
+  syncModeUI();
+}
+
+function toggleDriverBroadcast() {
+  if (isDriverBroadcasting) {
+    stopDriverBroadcasting();
+  } else {
+    startDriverBroadcasting();
+  }
+}
+
+function setupModeSwitcherUI() {
+  if (els.beaconModeBtn) {
+    els.beaconModeBtn.addEventListener('click', () => {
+      syncModeUI();
+      els.modeModal.classList.remove('hidden');
+    });
+  }
+
+  if (els.bannerOpenConsoleBtn) {
+    els.bannerOpenConsoleBtn.addEventListener('click', () => {
+      setAppMode('driver');
+      els.modeModal.classList.remove('hidden');
+    });
+  }
+
+  if (els.closeModeModalBtn) {
+    els.closeModeModalBtn.addEventListener('click', () => {
+      els.modeModal.classList.add('hidden');
+    });
+  }
+
+  if (els.saveModeModalBtn) {
+    els.saveModeModalBtn.addEventListener('click', () => {
+      els.modeModal.classList.add('hidden');
+    });
+  }
+
+  if (els.tabPassenger) {
+    els.tabPassenger.addEventListener('click', () => setAppMode('passenger'));
+  }
+
+  if (els.tabDriver) {
+    els.tabDriver.addEventListener('click', () => setAppMode('driver'));
+  }
+
+  if (els.switchToDriverBtn) {
+    els.switchToDriverBtn.addEventListener('click', () => setAppMode('driver'));
+  }
+
+  if (els.switchToPassengerBtn) {
+    els.switchToPassengerBtn.addEventListener('click', () => setAppMode('passenger'));
+  }
+
+  if (els.driverToggleBroadcastBtn) {
+    els.driverToggleBroadcastBtn.addEventListener('click', toggleDriverBroadcast);
+  }
+
+  syncModeUI();
 }
 
 // App Startup
@@ -955,7 +1364,16 @@ window.addEventListener('DOMContentLoaded', () => {
   setupSettingsUI();
   setupCarousel();
   setupEventListeners();
+  setupModeSwitcherUI();
   initUserLocation();
+
+  // Slow network helper: If map skeleton is still displayed after 3.5s, inform the user
+  slowNetworkTimer = setTimeout(() => {
+    if (els.skeletonStatusText && els.mapSkeleton && !els.mapSkeleton.classList.contains('hidden')) {
+      els.skeletonStatusText.textContent = 'SLOW NETWORK DETECTED • OPTIMIZING SATELLITE RADAR...';
+    }
+  }, 3500);
+
   fetchNearbyVehicles();
 
   const urlParams = new URLSearchParams(window.location.search);

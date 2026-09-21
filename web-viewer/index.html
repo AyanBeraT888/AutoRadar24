@@ -26,6 +26,90 @@
   <!-- Fullscreen Map Container -->
   <div id="map"></div>
 
+  <!-- Floating Network Status Toast -->
+  <div id="network-toast-banner" class="network-toast hidden" role="status">
+    <div class="toast-dot pulsing"></div>
+    <span id="network-toast-msg">Reconnecting to Auto 24 radar...</span>
+    <button id="toast-retry-btn" class="toast-retry-btn">Retry Now</button>
+  </div>
+
+  <!-- Beautiful Skeletal Radar Map Animation Overlay -->
+  <div id="map-skeleton" class="map-skeleton-overlay">
+    <!-- Cyberpunk grid background -->
+    <div class="skeleton-grid"></div>
+    
+    <!-- Concentric radar pulse rings & sweeping beam -->
+    <div class="skeleton-radar-center">
+      <div class="sonar-ring ring-1"></div>
+      <div class="sonar-ring ring-2"></div>
+      <div class="sonar-ring ring-3"></div>
+      <div class="sonar-ring ring-4"></div>
+      <div class="radar-beam"></div>
+      <div class="radar-center-blip"></div>
+    </div>
+
+    <!-- Shimmering Floating HUD Skeleton -->
+    <div class="skeleton-hud-card">
+      <div class="skeleton-shimmer skeleton-badge"></div>
+      <div class="skeleton-meta">
+        <div class="skeleton-shimmer skeleton-title"></div>
+        <div class="skeleton-shimmer skeleton-subtitle"></div>
+      </div>
+      <div class="skeleton-shimmer skeleton-btn"></div>
+    </div>
+
+    <!-- Live status readout -->
+    <div class="skeleton-status-pill">
+      <span class="skeleton-pulse-dot"></span>
+      <span id="skeleton-status-text">CALIBRATING LIVE SATELLITE RADAR...</span>
+    </div>
+  </div>
+
+  <!-- Fullscreen Fallback Error / Offline Screen -->
+  <div id="offline-fallback-screen" class="fallback-screen hidden">
+    <div class="fallback-card">
+      <div class="fallback-radar-icon">
+        <div class="fallback-icon-ring"></div>
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10a10 10 0 0 1-7.071-2.929"></path>
+          <path d="M12 6a6 6 0 0 1 6 6c0 3.314-2.686 6-6 6a6 6 0 0 1-4.243-1.757"></path>
+          <circle cx="12" cy="12" r="2"></circle>
+          <line x1="2" y1="2" x2="22" y2="22"></line>
+        </svg>
+      </div>
+
+      <div class="fallback-status-badge">
+        <span class="fallback-dot"></span>
+        <span>RADAR SIGNAL OFFLINE</span>
+      </div>
+
+      <h2 class="fallback-heading">Unable to Reach Radar Server</h2>
+      <p class="fallback-desc">
+        Live telemetry broadcast is temporarily unavailable. The server might be initializing or your internet connection was interrupted.
+      </p>
+
+      <div class="fallback-diagnostic-box">
+        <span class="diag-label">TARGET SERVER</span>
+        <span id="fallback-target-url" class="diag-value">...</span>
+      </div>
+
+      <div class="fallback-actions">
+        <button id="fallback-reconnect-btn" class="fallback-btn primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          <span id="fallback-reconnect-btn-text">Re-Scan Network</span>
+        </button>
+      </div>
+
+      <div class="fallback-countdown">
+        <span id="fallback-countdown-text">Auto-retrying in 5 seconds...</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Top Floating Homepage Bar (Active when NO vehicle is selected) -->
   <header id="home-bar" class="hud-card home-card">
     <div class="brand-group">
@@ -41,10 +125,17 @@
         <span class="status-dot green"></span>
         <span id="nearby-count-text">Scanning...</span>
       </div>
-      <button id="map-theme-btn" class="btn-icon" title="Toggle Map Style (Dark Radar / OSM Street)">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      <!-- Beacon Mode Switcher Button (Switch between Passenger Radar & Driver Console) -->
+      <button id="beacon-mode-btn" class="beacon-mode-btn" title="Switch between Passenger Radar and Driver Console">
+        <span class="beacon-pulse-ring"></span>
+        <svg class="beacon-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4.93 19.07a10 10 0 0 1 0-14.14"></path>
+          <path d="M7.76 16.24a6 6 0 0 1 0-8.48"></path>
+          <circle cx="12" cy="12" r="2.5" fill="currentColor"></circle>
+          <path d="M16.24 7.76a6 6 0 0 1 0 8.48"></path>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
         </svg>
+        <span id="beacon-mode-label" class="beacon-mode-label">Passenger</span>
       </button>
       <button id="settings-btn" class="btn-icon" title="Radius & Radar Settings">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -58,11 +149,21 @@
     </div>
   </header>
 
-  <!-- Floating Locate Me Button -->
-  <button id="locate-me-btn" class="fab-locate-btn" title="Center on My Location">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <circle cx="12" cy="12" r="4"></circle>
-      <path d="M12 2v3m0 14v3M2 12h3m14 0h3"></path>
+  <!-- Driver Mode Live Broadcasting Banner (Visible when Driver Mode is actively transmitting) -->
+  <div id="driver-broadcast-banner" class="driver-broadcast-banner hidden">
+    <div class="banner-beacon-dot"></div>
+    <div class="banner-info">
+      <span class="banner-title">DRIVER BEACON ACTIVE</span>
+      <span id="banner-driver-details" class="banner-details">Broadcasting live GPS telemetry</span>
+    </div>
+    <button id="banner-open-console-btn" class="banner-action-btn">Open Console</button>
+  </div>
+
+  <!-- Floating Recenter GPS Location Button (Those Icons - Flaticon style) -->
+  <button id="locate-me-btn" class="fab-locate-btn" title="Recenter on My Location">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" class="gps-flaticon-icon">
+      <path d="M12 8a4 4 0 1 0 4 4 4.004 4.004 0 0 0-4-4zm0 6a2 2 0 1 1 2-2 2.002 2.002 0 0 1-2 2z"/>
+      <path d="M21.92 11.08A9.98 9.98 0 0 0 12.92 2.08V0h-1.84v2.08a9.98 9.98 0 0 0-9 9H0v1.84h2.08a9.98 9.98 0 0 0 9 9V24h1.84v-2.08a9.98 9.98 0 0 0 9-9H24v-1.84zM12 20a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8z"/>
     </svg>
   </button>
 
@@ -271,9 +372,215 @@
             </label>
           </div>
         </div>
+
+        <!-- Device Permissions & Services Breakdown -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <span class="settings-label">DEVICE PERMISSIONS & SERVICES</span>
+          </div>
+          <div class="perm-service-list">
+            <div class="perm-item">
+              <div class="perm-icon">📍</div>
+              <div class="perm-content">
+                <div class="perm-name-row">
+                  <span class="perm-name">Precise Location (GPS)</span>
+                  <span class="perm-badge">Essential</span>
+                </div>
+                <div class="perm-service-desc">
+                  <strong>Passenger Radar:</strong> Centers map on your coordinates and finds autos within search radius.<br/>
+                  <strong>Driver Mode:</strong> Broadcasts live vehicle position so passengers can track you.
+                </div>
+              </div>
+            </div>
+
+            <div class="perm-item">
+              <div class="perm-icon">🧭</div>
+              <div class="perm-content">
+                <div class="perm-name-row">
+                  <span class="perm-name">Motion & Compass</span>
+                  <span class="perm-badge">Heading</span>
+                </div>
+                <div class="perm-service-desc">
+                  <strong>Orientation Service:</strong> Aligns vehicle icon along the physical direction of travel.
+                </div>
+              </div>
+            </div>
+
+            <div class="perm-item">
+              <div class="perm-icon">🌐</div>
+              <div class="perm-content">
+                <div class="perm-name-row">
+                  <span class="perm-name">Network & Telemetry</span>
+                  <span class="perm-badge">Live Sync</span>
+                </div>
+                <div class="perm-service-desc">
+                  <strong>Cloud Telemetry:</strong> Real-time streaming between vehicles and Auto 24 cloud radar node.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer modal-footer-col">
         <button id="save-settings-btn" class="btn btn-primary" style="width: 100%;">Save & Apply</button>
+        <p class="modal-credits">Map tiles &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mode Switcher & Driver Beacon Console Modal -->
+  <div id="mode-modal" class="modal-overlay hidden">
+    <div class="modal-content mode-modal-content">
+      <div class="modal-header">
+        <div class="modal-header-brand">
+          <span class="beacon-header-icon">📡</span>
+          <h2>Transit Mode & Driver Beacon</h2>
+        </div>
+        <button id="close-mode-modal-btn" class="modal-close">&times;</button>
+      </div>
+
+      <div class="mode-modal-scroll-body">
+        <!-- Mode Tabs (Passenger vs Driver) -->
+      <div class="mode-tabs">
+        <button type="button" id="tab-passenger" class="mode-tab active">
+          <span class="tab-icon">🟢</span>
+          <span class="tab-title">Passenger Radar</span>
+        </button>
+        <button type="button" id="tab-driver" class="mode-tab">
+          <span class="tab-icon">🟡</span>
+          <span class="tab-title">Driver Console</span>
+        </button>
+      </div>
+
+      <!-- PASSENGER VIEW -->
+      <div id="passenger-mode-view" class="mode-panel-body">
+        <div class="mode-status-card">
+          <div class="mode-status-header">
+            <span class="status-indicator-dot online"></span>
+            <span class="status-indicator-text">PASSENGER RADAR ACTIVE</span>
+          </div>
+          <p class="mode-status-desc">
+            You are viewing live nearby autos in real time. Your location beacon centers the map and calculates ETA to approaching vehicles.
+          </p>
+        </div>
+
+        <div class="quick-stats-row">
+          <div class="quick-stat-box">
+            <span class="stat-label">NEARBY FLEET</span>
+            <span id="passenger-fleet-count" class="stat-val">Scanning...</span>
+          </div>
+          <div class="quick-stat-box">
+            <span class="stat-label">RADAR RADIUS</span>
+            <span id="passenger-radius-display" class="stat-val">1.0 km</span>
+          </div>
+        </div>
+
+        <button id="switch-to-driver-btn" class="btn btn-warning-outline" style="width: 100%; margin-top: 14px;">
+          🚗 Switch to Driver Console Mode
+        </button>
+      </div>
+
+      <!-- DRIVER CONSOLE VIEW -->
+      <div id="driver-mode-view" class="mode-panel-body hidden">
+        <div class="driver-console-card">
+          <div class="driver-form-row">
+            <div class="form-group">
+              <label for="driver-input-vehicle">Vehicle Number</label>
+              <input type="text" id="driver-input-vehicle" placeholder="e.g. WB20B4455" value="WB20B4455" />
+            </div>
+            <div class="form-group">
+              <label for="driver-input-name">Driver Name</label>
+              <input type="text" id="driver-input-name" placeholder="e.g. Oishik Mondal" value="Oishik Mondal" />
+            </div>
+          </div>
+
+          <!-- Broadcast CTA Button -->
+          <button id="driver-toggle-broadcast-btn" class="btn btn-broadcast-toggle">
+            <span class="broadcast-icon">⚡</span>
+            <span id="driver-broadcast-btn-text">START TRANSMITTING / GO ONLINE</span>
+          </button>
+
+          <!-- Real-Time Telemetry Cockpit -->
+          <div id="driver-telemetry-box" class="telemetry-box">
+            <div class="telemetry-item">
+              <span class="telemetry-lbl">STATUS</span>
+              <span id="tel-status" class="telemetry-val off">OFFLINE</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-lbl">SPEED</span>
+              <span id="tel-speed" class="telemetry-val">0 km/h</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-lbl">GPS ACCURACY</span>
+              <span id="tel-accuracy" class="telemetry-val">--</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-lbl">PINGS SENT</span>
+              <span id="tel-pings" class="telemetry-val">0</span>
+            </div>
+          </div>
+        </div>
+
+        <button id="switch-to-passenger-btn" class="btn btn-secondary-outline" style="width: 100%; margin-top: 14px;">
+          🗺️ Switch Back to Passenger Map
+        </button>
+      </div>
+
+      <!-- DEVICE PERMISSIONS & SERVICES MAPPING SECTION -->
+      <div class="permission-services-card">
+        <div class="permission-card-header">
+          <span class="permission-shield-icon">🛡️</span>
+          <span class="permission-card-title">Device Permissions & Services</span>
+        </div>
+        <p class="permission-card-desc">
+          Auto 24 connects the following device permissions to transit services:
+        </p>
+        <div class="permission-service-list">
+          <div class="perm-item">
+            <div class="perm-icon">📍</div>
+            <div class="perm-content">
+              <div class="perm-name-row">
+                <span class="perm-name">Precise Location (GPS)</span>
+                <span class="perm-badge">Essential</span>
+              </div>
+              <div class="perm-service-desc">
+                <strong>Passenger Radar:</strong> Centers map on your coordinates and finds autos within search radius.<br/>
+                <strong>Driver Console:</strong> Transmits live vehicle position so passengers can track you.
+              </div>
+            </div>
+          </div>
+
+          <div class="perm-item">
+            <div class="perm-icon">🧭</div>
+            <div class="perm-content">
+              <div class="perm-name-row">
+                <span class="perm-name">Motion & Compass</span>
+                <span class="perm-badge">Heading</span>
+              </div>
+              <div class="perm-service-desc">
+                <strong>Orientation Service:</strong> Aligns vehicle icon along the physical direction of travel.
+              </div>
+            </div>
+          </div>
+
+          <div class="perm-item">
+            <div class="perm-icon">🌐</div>
+            <div class="perm-content">
+              <div class="perm-name-row">
+                <span class="perm-name">Network & Telemetry</span>
+                <span class="perm-badge">Live Sync</span>
+              </div>
+              <div class="perm-service-desc">
+                <strong>Cloud Telemetry:</strong> Real-time streaming between vehicles and Auto 24 cloud radar node.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="save-mode-modal-btn" class="btn btn-primary" style="width: 100%;">Close & Return to Map</button>
       </div>
     </div>
   </div>

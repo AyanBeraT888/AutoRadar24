@@ -231,6 +231,33 @@ export default function SidebarDrawer({
             </TouchableOpacity>
           </View>
 
+          {/* Device Permissions & Services Breakdown */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>DEVICE PERMISSIONS & SERVICES</Text>
+            <View style={styles.permCard}>
+              <View style={styles.permRow}>
+                <Text style={styles.permIcon}>📍</Text>
+                <View style={styles.permTextCol}>
+                  <Text style={styles.permTitle}>Precise Location (GPS)</Text>
+                  <Text style={styles.permService}>
+                    • Passenger Radar: Find nearby autos & ETA{'\n'}
+                    • Driver Console: Broadcast live coordinates
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.permDivider} />
+              <View style={styles.permRow}>
+                <Text style={styles.permIcon}>🧭</Text>
+                <View style={styles.permTextCol}>
+                  <Text style={styles.permTitle}>Motion & Compass</Text>
+                  <Text style={styles.permService}>
+                    • Heading Service: Align vehicle bearing on map
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
           {/* Footer Info */}
           <View style={styles.footer}>
             <View style={styles.footerRow}>
@@ -462,5 +489,41 @@ const styles = StyleSheet.create({
     fontSize: 10,
     textAlign: 'center',
     marginTop: 4,
+  },
+  permCard: {
+    backgroundColor: colors.cardBg,
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  permRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  permIcon: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  permTextCol: {
+    flex: 1,
+  },
+  permTitle: {
+    ...typography.titleMedium,
+    fontSize: 12,
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  permService: {
+    ...typography.caption,
+    fontSize: 10,
+    color: colors.textSecondary,
+    lineHeight: 14,
+  },
+  permDivider: {
+    height: 1,
+    backgroundColor: colors.cardBorder,
+    marginVertical: 8,
   },
 });
