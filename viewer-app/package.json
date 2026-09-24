@@ -1,7 +1,7 @@
 {
-  "name": "auto24-viewer-app",
+  "name": "autoradar18-viewer",
   "version": "1.0.0",
-  "description": "Auto 24 - User Native App for Live Auto/Toto Tracking",
+  "description": "AutoRadar18 - User Native App for Live Auto/Toto Tracking",
   "main": "index.js",
   "scripts": {
     "start": "expo start",

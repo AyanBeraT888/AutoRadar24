@@ -49,6 +49,8 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [retryCountdown, setRetryCountdown] = useState(5);
+  const [radarCount, setRadarCount] = useState(null);
+  const [radarRadiusKm, setRadarRadiusKm] = useState(1.0);
 
   // Auto-retry timer when connection to backend is interrupted
   useEffect(() => {
@@ -77,12 +79,12 @@ export default function App() {
   const webViewRef = useRef(null);
   const lastLocationRef = useRef(null);
 
-  const injectLocationIntoWebView = (coords) => {
+  const injectLocationIntoWebView = (coords, forceCenter = false) => {
     if (!coords || !webViewRef.current) return;
     const { latitude, longitude, accuracy } = coords;
     const jsCode = `
       if (typeof window.handleNativeLocation === 'function') {
-        window.handleNativeLocation(${latitude}, ${longitude}, ${accuracy || 0});
+        window.handleNativeLocation(${latitude}, ${longitude}, ${accuracy || 0}, ${forceCenter});
       }
       true;
     `;
@@ -102,27 +104,31 @@ export default function App() {
         setServerUrlState(savedUrl);
         setCurrentMode(savedMode || 'passenger');
 
-        // Request foreground location for Passenger radar map
+        // Request high-accuracy foreground location for Passenger radar map
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
-          const current = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-          if (current && current.coords) {
-            lastLocationRef.current = current.coords;
-            injectLocationIntoWebView(current.coords);
+          try {
+            const current = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+            });
+            if (current && current.coords) {
+              lastLocationRef.current = current.coords;
+              injectLocationIntoWebView(current.coords, true);
+            }
+          } catch (gpsErr) {
+            console.warn('Initial high-accuracy GPS fix note:', gpsErr.message);
           }
 
           locationSub = await Location.watchPositionAsync(
             {
-              accuracy: Location.Accuracy.Balanced,
-              timeInterval: 4000,
-              distanceInterval: 5,
+              accuracy: Location.Accuracy.High,
+              timeInterval: 3000,
+              distanceInterval: 2,
             },
             (loc) => {
               if (loc && loc.coords) {
                 lastLocationRef.current = loc.coords;
-                injectLocationIntoWebView(loc.coords);
+                injectLocationIntoWebView(loc.coords, false);
               }
             }
           );
@@ -244,7 +250,15 @@ export default function App() {
 
   const handleRecenterMap = () => {
     if (lastLocationRef.current) {
-      injectLocationIntoWebView(lastLocationRef.current);
+      injectLocationIntoWebView(lastLocationRef.current, true);
+    }
+  };
+
+  const handleOpenRadarSettings = () => {
+    if (webViewRef.current) {
+      webViewRef.current.injectJavaScript(
+        "if (typeof window.openSettingsModal === 'function') window.openSettingsModal(); true;"
+      );
     }
   };
 
@@ -269,21 +283,45 @@ export default function App() {
       {/* ======================================================== */}
       {currentMode === 'passenger' && (
         <View style={styles.mapContainer}>
-          {/* Floating Glassmorphism Beacon Mode Switch Button */}
+          {/* Floating Glassmorphism Top Navigation Bar */}
+          {/* Left: Beacon Mode Switcher | Middle: Number of Autos in Radar | Right: Account / Server Settings */}
           <View style={styles.floatingHeader}>
+            {/* Left: Beacon Mode Switcher Icon (Opens Side Drawer) */}
             <TouchableOpacity
               style={styles.floatingBeaconBtn}
               onPress={() => setSidebarVisible(true)}
               activeOpacity={0.8}
+              accessibilityLabel="Switch Transit Mode"
             >
               <View style={styles.beaconDotWrapper}>
                 <View style={styles.beaconDotPulse} />
                 <Text style={styles.beaconIconEmoji}>📡</Text>
               </View>
-              <View style={styles.beaconTextCol}>
-                <Text style={styles.beaconModeText}>PASSENGER RADAR</Text>
-                <Text style={styles.beaconSubText}>Tap beacon to switch mode</Text>
-              </View>
+            </TouchableOpacity>
+
+            {/* Middle: Number of Autos in Radar Search Area Indicator */}
+            <TouchableOpacity
+              style={styles.floatingRadarBadge}
+              onPress={handleRecenterMap}
+              activeOpacity={0.8}
+              accessibilityLabel="Autos in Radar Area"
+            >
+              <View style={styles.radarDotGreen} />
+              <Text style={styles.radarBadgeText}>
+                {radarCount === null
+                  ? 'Scanning Radar...'
+                  : `${radarCount} ${radarCount === 1 ? 'Auto' : 'Autos'} in Radar`}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Right Top Corner: Account / Server Settings */}
+            <TouchableOpacity
+              style={styles.floatingSettingsBtn}
+              onPress={() => setConfigVisible(true)}
+              activeOpacity={0.8}
+              accessibilityLabel="Account and Server Settings"
+            >
+              <Text style={styles.settingsIconEmoji}>⚙️</Text>
             </TouchableOpacity>
           </View>
 
@@ -359,9 +397,36 @@ export default function App() {
                 setIsLoading(false);
                 if (lastLocationRef.current) {
                   setTimeout(() => {
-                    injectLocationIntoWebView(lastLocationRef.current);
-                  }, 600);
+                    injectLocationIntoWebView(lastLocationRef.current, true);
+                  }, 400);
                 }
+              }}
+              onMessage={(event) => {
+                try {
+                  const data = JSON.parse(event.nativeEvent.data);
+                  if (data && (data.type === 'MAP_READY' || data.type === 'REQUEST_LOCATION')) {
+                    if (lastLocationRef.current) {
+                      injectLocationIntoWebView(lastLocationRef.current, true);
+                    }
+                    Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High })
+                      .then((pos) => {
+                        if (pos && pos.coords) {
+                          lastLocationRef.current = pos.coords;
+                          injectLocationIntoWebView(pos.coords, true);
+                        }
+                      })
+                      .catch(() => {});
+                  } else if (data && data.type === 'RADAR_COUNT_UPDATE') {
+                    if (typeof data.count === 'number') {
+                      setRadarCount(data.count);
+                    }
+                    if (typeof data.radiusKm === 'number') {
+                      setRadarRadiusKm(data.radiusKm);
+                    }
+                  } else if (data && data.type === 'OPEN_RADAR_SETTINGS') {
+                    handleOpenRadarSettings();
+                  }
+                } catch {}
               }}
               onGeolocationPermissionsShowPrompt={(prompt) => {
                 prompt({ origin: prompt.origin, allow: true, retain: true });
@@ -391,7 +456,7 @@ export default function App() {
             <DriverRegistrationScreen
               onRegistered={(profile) => {
                 setDriverProfile(profile);
-                setDriverState(DRIVER_STATE.PENDING);
+                setDriverState(DRIVER_STATE.TRACKING);
               }}
               onOpenMenu={() => setSidebarVisible(true)}
             />
@@ -434,6 +499,7 @@ export default function App() {
         onSelectMode={handleSelectMode}
         onClose={() => setSidebarVisible(false)}
         onOpenServerConfig={() => setConfigVisible(true)}
+        onOpenRadarSettings={handleOpenRadarSettings}
         onReloadMap={handleReloadMap}
         onRecenterMap={handleRecenterMap}
         serverUrl={serverUrl}
@@ -479,7 +545,7 @@ const styles = StyleSheet.create({
   },
   floatingHeader: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 20,
+    top: Platform.OS === 'ios' ? 52 : 24,
     left: 16,
     right: 16,
     zIndex: 999,
@@ -489,55 +555,86 @@ const styles = StyleSheet.create({
     pointerEvents: 'box-none',
   },
   floatingBeaconBtn: {
-    flexDirection: 'row',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 24,
+    justifyContent: 'center',
     backgroundColor: 'rgba(22, 27, 34, 0.92)',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.brandGold,
     shadowColor: colors.brandGold,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.45,
     shadowRadius: 8,
     elevation: 8,
-    gap: 8,
   },
   beaconDotWrapper: {
     position: 'relative',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255, 204, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   beaconDotPulse: {
     position: 'absolute',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: colors.brandGold,
     opacity: 0.6,
   },
   beaconIconEmoji: {
-    fontSize: 14,
+    fontSize: 16,
   },
-  beaconTextCol: {
-    flexDirection: 'column',
+  floatingRadarBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(13, 17, 23, 0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 204, 0, 0.45)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    shadowColor: colors.brandGold,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  beaconModeText: {
-    color: colors.brandGold,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+  radarDotGreen: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+    marginRight: 8,
   },
-  beaconSubText: {
-    color: colors.textMuted,
-    fontSize: 9,
-    fontWeight: '600',
+  radarBadgeText: {
+    color: '#F9FAFB',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  floatingSettingsBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(22, 27, 34, 0.92)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  settingsIconEmoji: {
+    fontSize: 18,
   },
   webView: {
     flex: 1,

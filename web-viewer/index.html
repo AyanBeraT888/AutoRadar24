@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Auto 24 — Live Driver Location</title>
+  <title>AutoRadar18 — Live Driver Location</title>
   <meta name="description" content="Live real-time driver tracking on OpenStreetMap" />
   <link rel="icon" type="image/png" href="./assets/favicon.png" />
 
@@ -16,9 +16,6 @@
   <!-- Local Leaflet CSS (Zero 3rd-party tracking warnings) -->
   <link rel="stylesheet" href="./vendor/leaflet/leaflet.css" />
 
-  <!-- Google Model-Viewer for Interactive 3D glTF/GLB Rendering -->
-  <script type="module" src="./vendor/model-viewer/model-viewer.min.js"></script>
-
   <link rel="stylesheet" href="./css/style.css" />
 </head>
 
@@ -29,7 +26,7 @@
   <!-- Floating Network Status Toast -->
   <div id="network-toast-banner" class="network-toast hidden" role="status">
     <div class="toast-dot pulsing"></div>
-    <span id="network-toast-msg">Reconnecting to Auto 24 radar...</span>
+    <span id="network-toast-msg">Reconnecting to AutoRadar18 radar...</span>
     <button id="toast-retry-btn" class="toast-retry-btn">Retry Now</button>
   </div>
 
@@ -113,9 +110,9 @@
   <!-- Top Floating Homepage Bar (Active when NO vehicle is selected) -->
   <header id="home-bar" class="hud-card home-card">
     <div class="brand-group">
-      <div class="brand-badge">24</div>
+      <div class="brand-badge">18</div>
       <div class="driver-meta">
-        <h1 class="driver-name">Auto 24</h1>
+        <h1 class="driver-name">AutoRadar18</h1>
         <span class="vehicle-no">Nearby Live Autos</span>
       </div>
     </div>
@@ -125,18 +122,6 @@
         <span class="status-dot green"></span>
         <span id="nearby-count-text">Scanning...</span>
       </div>
-      <!-- Beacon Mode Switcher Button (Switch between Passenger Radar & Driver Console) -->
-      <button id="beacon-mode-btn" class="beacon-mode-btn" title="Switch between Passenger Radar and Driver Console">
-        <span class="beacon-pulse-ring"></span>
-        <svg class="beacon-svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4.93 19.07a10 10 0 0 1 0-14.14"></path>
-          <path d="M7.76 16.24a6 6 0 0 1 0-8.48"></path>
-          <circle cx="12" cy="12" r="2.5" fill="currentColor"></circle>
-          <path d="M16.24 7.76a6 6 0 0 1 0 8.48"></path>
-          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
-        </svg>
-        <span id="beacon-mode-label" class="beacon-mode-label">Passenger</span>
-      </button>
       <button id="settings-btn" class="btn-icon" title="Radius & Radar Settings">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
           stroke-linecap="round" stroke-linejoin="round">
@@ -167,138 +152,90 @@
     </svg>
   </button>
 
-  <!-- SINGLE FLIGHTRADAR24-STYLE VEHICLE PROFILE CARD (Replaces previous top & bottom cards) -->
-  <aside id="vehicle-profile-card" class="fr-card fr-hidden" aria-label="Live Vehicle Details">
-    <!-- Card Top Bar: Callsign, Owner, Watermark, and Close -->
-    <div class="fr-header">
-      <div class="fr-header-left">
-        <div class="fr-id-row">
-          <span id="fr-vehicle-no" class="fr-callsign">WB20B4455</span>
-          <span class="fr-tag fr-tag-brand">AUTO24</span>
-          <span id="fr-type-badge" class="fr-tag fr-tag-type">TOTO-EV</span>
-        </div>
-        <div class="fr-owner-row">
-          <span class="fr-owner-label">OWNER:</span>
-          <span id="fr-owner-name" class="fr-owner-name">Oishik Mondal</span>
-        </div>
-      </div>
-      <div class="fr-header-right">
-        <span class="fr-brand-watermark">auto<span class="gold">24</span></span>
-        <button id="fr-close-btn" class="fr-close-btn" title="Close vehicle view and return to map">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-    </div>
+  <!-- VEHICLE PROFILE CARD (23% screen space, styled exactly to user SVG diagram, no avatar) -->
+  <aside id="vehicle-profile-card" class="fr-card fr-hidden custom-profile-card" aria-label="Live Vehicle Details">
+    <!-- Left Accent Strip -->
+    <div class="card-accent-bar"></div>
 
-    <!-- Graphical Picture of Toto / Auto Banner (3D GLB Interactive Model) -->
-    <div class="fr-image-banner">
-      <div id="fr-graphic-container" class="fr-graphic-display">
-        <model-viewer
-          id="fr-3d-model"
-          src="./assets/tuktuk_moving_yellow.glb"
-          alt="Auto 24 3D Toto Model"
-          auto-rotate
-          rotation-per-second="25deg"
-          camera-controls
-          touch-action="pan-y"
-          shadow-intensity="1.2"
-          shadow-softness="0.8"
-          exposure="1.1"
-          camera-orbit="35deg 75deg 3.5m"
-          interaction-prompt="none"
-          loading="eager"
-          class="fr-model-viewer"
-        >
-          <!-- 2D Poster image while 3D is loading or as fallback -->
-          <img id="fr-graphic-img" slot="poster" src="./assets/auto-3d-yellow.png" alt="Auto 3D Model" class="fr-graphic-img" />
-        </model-viewer>
-      </div>
-      
-      <!-- Overlay Carousel Controls & Credits -->
-      <div class="fr-banner-overlay">
-        <div class="fr-carousel-dots">
-          <button type="button" class="fr-dot active" data-slide="0" title="3D Auto Yellow Model"></button>
-          <button type="button" class="fr-dot" data-slide="1" title="3D Auto Red Model"></button>
+    <div class="card-main-content">
+      <!-- TOP ROW: DRIVER & VEHICLE NUMBER BADGE + CLOSE -->
+      <div class="card-top-row">
+        <!-- Driver Info (No avatar as requested) -->
+        <div class="driver-info-box">
+          <span class="card-label">DRIVER</span>
+          <span id="fr-owner-name" class="driver-name">...</span>
         </div>
-        <div class="fr-credit-tag">
-          <span id="fr-graphic-label">© Auto 24 • Interactive 3D</span>
-        </div>
-      </div>
-    </div>
 
-    <!-- Toto Model Strip (Strictly includes Toto Model) -->
-    <div class="fr-model-bar">
-      <span class="fr-model-pill-label">TOTO MODEL</span>
-      <span id="fr-model-name" class="fr-model-pill-val">Mayuri Deluxe Electric Toto (E-Rickshaw)</span>
-    </div>
+        <!-- Right Side: Toto No Badge & Close Button -->
+        <div class="card-top-right">
+          <div class="toto-no-badge">
+            <span class="badge-label">TOTO NO.</span>
+            <span id="fr-vehicle-no" class="toto-no">null</span>
+          </div>
 
-    <!-- Flightradar24 Telemetry Split Block (Status & Speed) -->
-    <div class="fr-telemetry-split">
-      <div class="fr-split-box fr-box-left">
-        <div class="fr-box-code" id="fr-status-code">MOV</div>
-        <div class="fr-box-title" id="fr-status-text">MOVING</div>
-        <div class="fr-box-sub" id="fr-status-detail">TRACKING ACTIVE</div>
-      </div>
-
-      <div class="fr-split-center">
-        <div class="fr-center-badge" id="fr-center-icon-badge">
-          <img src="./assets/auto-3d-yellow.png" width="30" height="36" style="object-fit: contain;" alt="Auto" />
+          <button id="fr-close-btn" class="card-close-btn" title="Deselect vehicle" aria-label="Close vehicle details">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
         </div>
       </div>
 
-      <div class="fr-split-box fr-box-right">
-        <div class="fr-box-code" id="fr-speed-val">0</div>
-        <div class="fr-box-title">KM/H</div>
-        <div class="fr-box-sub" id="fr-speed-sub">CURRENT SPEED</div>
-      </div>
-    </div>
+      <!-- HORIZONTAL DIVIDER LINE -->
+      <div class="card-divider-line"></div>
 
-    <!-- Telemetry Details Matrix -->
-    <div class="fr-grid-details">
-      <div class="fr-grid-row">
-        <div class="fr-grid-cell">
-          <span class="fr-cell-label">LAST PING</span>
-          <span id="fr-metric-ping" class="fr-cell-value">Just now</span>
+      <!-- BOTTOM ROW: TELEMETRY METRICS (SPEED, HEADING, SIGNAL & PING) -->
+      <div class="card-metrics-row">
+        <!-- 1. SPEED -->
+        <div class="metric-col">
+          <div class="metric-icon-wrap">
+            <svg width="28" height="24" viewBox="0 0 28 24" fill="none">
+              <path d="M 2 18 A 12 12 0 0 1 22 8" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M 2 18 A 12 12 0 0 1 26 18" fill="none" stroke="#334155" stroke-width="2.5" stroke-linecap="round"/>
+              <polyline points="14,18 19,9" stroke="#38bdf8" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="metric-text-wrap">
+            <span class="card-label">SPEED</span>
+            <div class="card-value">
+              <span id="fr-speed-val">0</span> <span class="sub-text">km/h</span>
+            </div>
+          </div>
         </div>
-        <div class="fr-grid-cell">
-          <span class="fr-cell-label">SIGNAL / TIMEOUT</span>
-          <span id="fr-metric-signal" class="fr-cell-value text-green">● Live (15s idle max)</span>
-        </div>
-      </div>
-      <div class="fr-grid-row">
-        <div class="fr-grid-cell">
-          <span class="fr-cell-label">GPS COORDINATES</span>
-          <span id="fr-metric-coords" class="fr-cell-value mono">12.9738° N, 77.5962° E</span>
-        </div>
-        <div class="fr-grid-cell">
-          <span class="fr-cell-label">HEADING / BEARING</span>
-          <span id="fr-metric-heading" class="fr-cell-value">0° (North)</span>
-        </div>
-      </div>
-    </div>
 
-    <!-- Live Track Progress Bar (Flightradar flight-line style) -->
-    <div class="fr-track-container">
-      <div class="fr-track-bar">
-        <div id="fr-track-progress" class="fr-track-fill"></div>
-        <div id="fr-track-marker" class="fr-track-icon">
-          <img src="./assets/auto-3d-yellow.png" width="16" height="20" style="object-fit: contain;" alt="Marker" />
+        <!-- 2. HEADING -->
+        <div class="metric-col">
+          <div class="metric-icon-wrap">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+              <circle cx="13" cy="13" r="11" fill="none" stroke="#334155" stroke-width="1.5"/>
+              <polygon points="13,4 16,13 13,11 10,13" fill="#ef4444"/>
+              <polygon points="13,22 16,13 13,11 10,13" fill="#64748b"/>
+            </svg>
+          </div>
+          <div class="metric-text-wrap">
+            <span class="card-label">HEADING</span>
+            <div id="fr-metric-heading" class="card-value">
+              0° <span class="sub-text">(North)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. SIGNAL & PING -->
+        <div class="metric-col">
+          <div class="metric-icon-wrap signal-icon-wrap">
+            <div id="signal-dot" class="signal-dot-ring">
+              <span class="signal-dot-inner"></span>
+            </div>
+          </div>
+          <div class="metric-text-wrap">
+            <span class="card-label">SIGNAL &amp; PING</span>
+            <div id="fr-metric-signal" class="status-text">
+              Live <span id="fr-metric-ping" class="sub-text">(Just now)</span>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- Action Buttons -->
-    <div class="fr-actions-bar">
-      <button id="fr-recenter-btn" class="fr-btn fr-btn-primary" title="Center map on this vehicle">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M12 2v3m0 14v3M2 12h3m14 0h3"></path>
-        </svg>
-        <span>Recenter Vehicle</span>
-      </button>
     </div>
   </aside>
 
@@ -370,54 +307,6 @@
               <input type="checkbox" id="toggle-radius-circle" checked />
               <span class="slider-toggle"></span>
             </label>
-          </div>
-        </div>
-
-        <!-- Device Permissions & Services Breakdown -->
-        <div class="settings-section">
-          <div class="settings-section-header">
-            <span class="settings-label">DEVICE PERMISSIONS & SERVICES</span>
-          </div>
-          <div class="perm-service-list">
-            <div class="perm-item">
-              <div class="perm-icon">📍</div>
-              <div class="perm-content">
-                <div class="perm-name-row">
-                  <span class="perm-name">Precise Location (GPS)</span>
-                  <span class="perm-badge">Essential</span>
-                </div>
-                <div class="perm-service-desc">
-                  <strong>Passenger Radar:</strong> Centers map on your coordinates and finds autos within search radius.<br/>
-                  <strong>Driver Mode:</strong> Broadcasts live vehicle position so passengers can track you.
-                </div>
-              </div>
-            </div>
-
-            <div class="perm-item">
-              <div class="perm-icon">🧭</div>
-              <div class="perm-content">
-                <div class="perm-name-row">
-                  <span class="perm-name">Motion & Compass</span>
-                  <span class="perm-badge">Heading</span>
-                </div>
-                <div class="perm-service-desc">
-                  <strong>Orientation Service:</strong> Aligns vehicle icon along the physical direction of travel.
-                </div>
-              </div>
-            </div>
-
-            <div class="perm-item">
-              <div class="perm-icon">🌐</div>
-              <div class="perm-content">
-                <div class="perm-name-row">
-                  <span class="perm-name">Network & Telemetry</span>
-                  <span class="perm-badge">Live Sync</span>
-                </div>
-                <div class="perm-service-desc">
-                  <strong>Cloud Telemetry:</strong> Real-time streaming between vehicles and Auto 24 cloud radar node.
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -519,6 +408,26 @@
               <span id="tel-pings" class="telemetry-val">0</span>
             </div>
           </div>
+
+          <!-- GPS Blocked Helper Alert -->
+          <div id="gps-blocked-alert" class="gps-blocked-alert hidden">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-body">
+              <strong class="alert-title">Browser Location is Blocked</strong>
+              <p class="alert-text">
+                Your browser blocked location permission for this app.
+              </p>
+              <div class="alert-steps">
+                <div>1. Click the 🔒 <strong>Lock / Tune</strong> icon in the address bar (next to URL).</div>
+                <div>2. Set <strong>Location</strong> to <strong>Allow</strong>.</div>
+                <div>3. Tap <strong>Retry GPS</strong> or use <strong>Simulated Drive</strong> below.</div>
+              </div>
+              <div class="alert-actions">
+                <button type="button" id="retry-gps-btn" class="btn-alert-action">🔄 Retry GPS Access</button>
+                <button type="button" id="start-simulated-driver-btn" class="btn-alert-action secondary">🚗 Start Simulated Drive (Demo)</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <button id="switch-to-passenger-btn" class="btn btn-secondary-outline" style="width: 100%; margin-top: 14px;">
@@ -533,7 +442,7 @@
           <span class="permission-card-title">Device Permissions & Services</span>
         </div>
         <p class="permission-card-desc">
-          Auto 24 connects the following device permissions to transit services:
+          AutoRadar18 connects the following device permissions to transit services:
         </p>
         <div class="permission-service-list">
           <div class="perm-item">
@@ -541,7 +450,10 @@
             <div class="perm-content">
               <div class="perm-name-row">
                 <span class="perm-name">Precise Location (GPS)</span>
-                <span class="perm-badge">Essential</span>
+                <label class="switch">
+                  <input type="checkbox" id="toggle-perm-gps-modal" checked />
+                  <span class="slider-toggle"></span>
+                </label>
               </div>
               <div class="perm-service-desc">
                 <strong>Passenger Radar:</strong> Centers map on your coordinates and finds autos within search radius.<br/>
@@ -555,7 +467,10 @@
             <div class="perm-content">
               <div class="perm-name-row">
                 <span class="perm-name">Motion & Compass</span>
-                <span class="perm-badge">Heading</span>
+                <label class="switch">
+                  <input type="checkbox" id="toggle-perm-motion-modal" checked />
+                  <span class="slider-toggle"></span>
+                </label>
               </div>
               <div class="perm-service-desc">
                 <strong>Orientation Service:</strong> Aligns vehicle icon along the physical direction of travel.
@@ -568,10 +483,13 @@
             <div class="perm-content">
               <div class="perm-name-row">
                 <span class="perm-name">Network & Telemetry</span>
-                <span class="perm-badge">Live Sync</span>
+                <label class="switch">
+                  <input type="checkbox" id="toggle-perm-network-modal" checked />
+                  <span class="slider-toggle"></span>
+                </label>
               </div>
               <div class="perm-service-desc">
-                <strong>Cloud Telemetry:</strong> Real-time streaming between vehicles and Auto 24 cloud radar node.
+                <strong>Cloud Telemetry:</strong> Real-time streaming between vehicles and AutoRadar18 cloud radar node.
               </div>
             </div>
           </div>

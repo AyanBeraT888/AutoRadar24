@@ -73,7 +73,7 @@ export default function DriverRegistrationScreen({ onRegistered, onOpenMenu }) {
             <Text style={styles.menuIcon}>☰</Text>
           </TouchableOpacity>
           <View style={styles.headerTitleBox}>
-            <Text style={styles.brandTitle}>Auto 24</Text>
+            <Text style={styles.brandTitle}>AutoRadar18</Text>
             <Text style={styles.tagline}>Driver Console</Text>
           </View>
           <View style={styles.menuBtnPlaceholder} />
@@ -83,7 +83,7 @@ export default function DriverRegistrationScreen({ onRegistered, onOpenMenu }) {
         <View style={styles.formCard}>
           <Text style={styles.formTitle}>Driver Registration</Text>
           <Text style={styles.formSubtitle}>
-            Register your vehicle to broadcast your live location on the Auto 24 radar network.
+            Register your vehicle to broadcast your live location on the AutoRadar18 radar network.
           </Text>
 
           <View style={styles.inputGroup}>

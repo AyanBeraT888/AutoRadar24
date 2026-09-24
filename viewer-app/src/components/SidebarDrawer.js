@@ -4,7 +4,7 @@
  * and quick utilities (Server Settings, Refresh Map, Recenter GPS).
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,7 +15,12 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
   Platform,
+  Switch,
+  Linking,
+  Alert,
+  ScrollView,
 } from 'react-native';
+import * as Location from 'expo-location';
 import colors from '../theme/colors';
 import typography from '../theme/typography';
 
@@ -28,6 +33,7 @@ export default function SidebarDrawer({
   onSelectMode,
   onClose,
   onOpenServerConfig,
+  onOpenRadarSettings,
   onReloadMap,
   onRecenterMap,
   serverUrl,
@@ -35,6 +41,48 @@ export default function SidebarDrawer({
 }) {
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Permissions & Services State
+  const [locationPerm, setLocationPerm] = useState(true);
+  const [motionPerm, setMotionPerm] = useState(true);
+  const [networkPerm, setNetworkPerm] = useState(true);
+
+  // Sync actual location permission state whenever drawer opens
+  useEffect(() => {
+    if (visible) {
+      Location.getForegroundPermissionsAsync()
+        .then(({ status }) => {
+          setLocationPerm(status === 'granted');
+        })
+        .catch(() => {});
+    }
+  }, [visible]);
+
+  const handleToggleLocation = async (value) => {
+    if (value) {
+      try {
+        const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          setLocationPerm(true);
+          if (onRecenterMap) onRecenterMap();
+        } else {
+          setLocationPerm(false);
+          Alert.alert(
+            'Location Permission Required',
+            'Precise location was previously declined or blocked. Open your device settings to allow location access so Auto 24 can locate nearby vehicles.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]
+          );
+        }
+      } catch (err) {
+        Alert.alert('Settings', 'Please allow location in device settings.');
+      }
+    } else {
+      setLocationPerm(false);
+    }
+  };
 
   useEffect(() => {
     if (visible) {
@@ -97,10 +145,10 @@ export default function SidebarDrawer({
           <View style={styles.header}>
             <View style={styles.brandRow}>
               <View style={styles.logoBadge}>
-                <Text style={styles.logoText}>24</Text>
+                <Text style={styles.logoText}>18</Text>
               </View>
               <View style={styles.brandTextContainer}>
-                <Text style={styles.brandTitle}>Auto 24</Text>
+                <Text style={styles.brandTitle}>AutoRadar18</Text>
                 <Text style={styles.brandSubtitle}>Transit Network</Text>
               </View>
             </View>
@@ -109,154 +157,225 @@ export default function SidebarDrawer({
             </TouchableOpacity>
           </View>
 
-          {/* Mode Selector Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>SELECT MODE</Text>
+          {/* Scrollable Drawer Body */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            bounces={false}
+          >
+            {/* Mode Selector Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>SELECT MODE</Text>
 
-            {/* Passenger Radar Mode Card */}
-            <TouchableOpacity
-              style={[
-                styles.modeCard,
-                currentMode === 'passenger' && styles.modeCardActive,
-              ]}
-              onPress={() => handleModeChange('passenger')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.modeCardContent}>
-                <View style={styles.modeHeader}>
-                  <Text
-                    style={[
-                      styles.modeTitle,
-                      currentMode === 'passenger' && styles.modeTitleActive,
-                    ]}
-                  >
-                    Passenger Radar
-                  </Text>
-                  {currentMode === 'passenger' && (
-                    <View style={styles.activePill}>
-                      <Text style={styles.activePillText}>ACTIVE</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.modeDescription}>
-                  Live radar map, nearby vehicle tracking and traffic telemetry.
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Driver Console Mode Card */}
-            <TouchableOpacity
-              style={[
-                styles.modeCard,
-                currentMode === 'driver' && styles.modeCardActive,
-              ]}
-              onPress={() => handleModeChange('driver')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.modeCardContent}>
-                <View style={styles.modeHeader}>
-                  <Text
-                    style={[
-                      styles.modeTitle,
-                      currentMode === 'driver' && styles.modeTitleActive,
-                    ]}
-                  >
-                    Driver Console
-                  </Text>
-                  {currentMode === 'driver' ? (
-                    <View style={styles.activePill}>
-                      <Text style={styles.activePillText}>ACTIVE</Text>
-                    </View>
-                  ) : driverStatus === 'approved' ? (
-                    <View style={styles.verifiedPill}>
-                      <Text style={styles.verifiedPillText}>VERIFIED</Text>
-                    </View>
-                  ) : null}
-                </View>
-                <Text style={styles.modeDescription}>
-                  Broadcast vehicle coordinates, manage shifts, and sensor telemetry.
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Quick Actions Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>QUICK ACTIONS</Text>
-
-            {currentMode === 'passenger' && (
-              <>
-                <TouchableOpacity
-                  style={styles.actionRow}
-                  onPress={() => {
-                    onClose();
-                    onReloadMap();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.actionIconBox}>
-                    <Text style={styles.actionIcon}>R</Text>
+              {/* Passenger Radar Mode Card */}
+              <TouchableOpacity
+                style={[
+                  styles.modeCard,
+                  currentMode === 'passenger' && styles.modeCardActive,
+                ]}
+                onPress={() => handleModeChange('passenger')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.modeCardContent}>
+                  <View style={styles.modeHeader}>
+                    <Text
+                      style={[
+                        styles.modeTitle,
+                        currentMode === 'passenger' && styles.modeTitleActive,
+                      ]}
+                    >
+                      Passenger Radar
+                    </Text>
+                    {currentMode === 'passenger' && (
+                      <View style={styles.activePill}>
+                        <Text style={styles.activePillText}>ACTIVE</Text>
+                      </View>
+                    )}
                   </View>
-                  <Text style={styles.actionLabel}>Reload Radar Map</Text>
-                </TouchableOpacity>
+                  <Text style={styles.modeDescription}>
+                    Live radar map, nearby vehicle tracking and traffic telemetry.
+                  </Text>
+                </View>
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.actionRow}
-                  onPress={() => {
-                    onClose();
-                    onRecenterMap();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.actionIconBox}>
-                    <Text style={styles.actionIcon}>L</Text>
+              {/* Driver Console Mode Card */}
+              <TouchableOpacity
+                style={[
+                  styles.modeCard,
+                  currentMode === 'driver' && styles.modeCardActive,
+                ]}
+                onPress={() => handleModeChange('driver')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.modeCardContent}>
+                  <View style={styles.modeHeader}>
+                    <Text
+                      style={[
+                        styles.modeTitle,
+                        currentMode === 'driver' && styles.modeTitleActive,
+                      ]}
+                    >
+                      Driver Console
+                    </Text>
+                    {currentMode === 'driver' ? (
+                      <View style={styles.activePill}>
+                        <Text style={styles.activePillText}>ACTIVE</Text>
+                      </View>
+                    ) : driverStatus === 'approved' ? (
+                      <View style={styles.verifiedPill}>
+                        <Text style={styles.verifiedPillText}>VERIFIED</Text>
+                      </View>
+                    ) : null}
                   </View>
-                  <Text style={styles.actionLabel}>Recenter My Location</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={() => {
-                onClose();
-                onOpenServerConfig();
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionIconBox}>
-                <Text style={styles.actionIcon}>S</Text>
-              </View>
-              <Text style={styles.actionLabel}>Server Settings</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Device Permissions & Services Breakdown */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>DEVICE PERMISSIONS & SERVICES</Text>
-            <View style={styles.permCard}>
-              <View style={styles.permRow}>
-                <Text style={styles.permIcon}>📍</Text>
-                <View style={styles.permTextCol}>
-                  <Text style={styles.permTitle}>Precise Location (GPS)</Text>
-                  <Text style={styles.permService}>
-                    • Passenger Radar: Find nearby autos & ETA{'\n'}
-                    • Driver Console: Broadcast live coordinates
+                  <Text style={styles.modeDescription}>
+                    Broadcast vehicle coordinates, manage shifts, and sensor telemetry.
                   </Text>
                 </View>
-              </View>
-              <View style={styles.permDivider} />
-              <View style={styles.permRow}>
-                <Text style={styles.permIcon}>🧭</Text>
-                <View style={styles.permTextCol}>
-                  <Text style={styles.permTitle}>Motion & Compass</Text>
-                  <Text style={styles.permService}>
-                    • Heading Service: Align vehicle bearing on map
-                  </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick Actions Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>QUICK ACTIONS</Text>
+
+              {currentMode === 'passenger' && (
+                <>
+                  <TouchableOpacity
+                    style={styles.actionRow}
+                    onPress={() => {
+                      onClose();
+                      if (onOpenRadarSettings) onOpenRadarSettings();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.actionIconBox}>
+                      <Text style={styles.actionIcon}>🎯</Text>
+                    </View>
+                    <Text style={styles.actionLabel}>Radar Search Radius</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionRow}
+                    onPress={() => {
+                      onClose();
+                      onReloadMap();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.actionIconBox}>
+                      <Text style={styles.actionIcon}>🔄</Text>
+                    </View>
+                    <Text style={styles.actionLabel}>Reload Radar Map</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionRow}
+                    onPress={() => {
+                      onClose();
+                      onRecenterMap();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.actionIconBox}>
+                      <Text style={styles.actionIcon}>📍</Text>
+                    </View>
+                    <Text style={styles.actionLabel}>Recenter My Location</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              <TouchableOpacity
+                style={styles.actionRow}
+                onPress={() => {
+                  onClose();
+                  onOpenServerConfig();
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.actionIconBox}>
+                  <Text style={styles.actionIcon}>⚙️</Text>
                 </View>
+                <Text style={styles.actionLabel}>Server Settings</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Device Permissions & Services Breakdown with Toggles */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>DEVICE PERMISSIONS & SERVICES</Text>
+              <View style={styles.permCard}>
+                {/* 1. Precise Location (GPS) - Always available */}
+                <View style={styles.permRow}>
+                  <Text style={styles.permIcon}>📍</Text>
+                  <View style={styles.permTextCol}>
+                    <View style={styles.permHeaderRow}>
+                      <Text style={styles.permTitle}>Precise Location (GPS)</Text>
+                      <Switch
+                        value={locationPerm}
+                        onValueChange={handleToggleLocation}
+                        trackColor={{ false: '#374151', true: colors.brandGold }}
+                        thumbColor={locationPerm ? '#0D1117' : '#9CA3AF'}
+                        style={styles.switchCompact}
+                      />
+                    </View>
+                    <Text style={styles.permService}>
+                      {currentMode === 'passenger'
+                        ? '• Centers live radar map & finds nearby autos'
+                        : '• Broadcasts vehicle GPS position to passengers'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Driver-only Permissions: Motion & Compass, Network & Telemetry */}
+                {currentMode === 'driver' && (
+                  <>
+                    <View style={styles.permDivider} />
+
+                    {/* 2. Motion & Compass */}
+                    <View style={styles.permRow}>
+                      <Text style={styles.permIcon}>🧭</Text>
+                      <View style={styles.permTextCol}>
+                        <View style={styles.permHeaderRow}>
+                          <Text style={styles.permTitle}>Motion & Compass</Text>
+                          <Switch
+                            value={motionPerm}
+                            onValueChange={(val) => setMotionPerm(val)}
+                            trackColor={{ false: '#374151', true: colors.brandGold }}
+                            thumbColor={motionPerm ? '#0D1117' : '#9CA3AF'}
+                            style={styles.switchCompact}
+                          />
+                        </View>
+                        <Text style={styles.permService}>
+                          • Heading Service: Align vehicle bearing along direction of travel
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.permDivider} />
+
+                    {/* 3. Network & Telemetry */}
+                    <View style={styles.permRow}>
+                      <Text style={styles.permIcon}>🌐</Text>
+                      <View style={styles.permTextCol}>
+                        <View style={styles.permHeaderRow}>
+                          <Text style={styles.permTitle}>Network & Telemetry</Text>
+                          <Switch
+                            value={networkPerm}
+                            onValueChange={(val) => setNetworkPerm(val)}
+                            trackColor={{ false: '#374151', true: colors.brandGold }}
+                            thumbColor={networkPerm ? '#0D1117' : '#9CA3AF'}
+                            style={styles.switchCompact}
+                          />
+                        </View>
+                        <Text style={styles.permService}>
+                          • Cloud Telemetry: Real-time streaming with AutoRadar18 cloud radar node
+                        </Text>
+                      </View>
+                    </View>
+                  </>
+                )}
               </View>
             </View>
-          </View>
+          </ScrollView>
 
           {/* Footer Info */}
           <View style={styles.footer}>
@@ -266,7 +385,7 @@ export default function SidebarDrawer({
                 {serverUrl || 'Default'}
               </Text>
             </View>
-            <Text style={styles.versionText}>Auto 24 Platform v1.0.0</Text>
+            <Text style={styles.versionText}>AutoRadar18 Platform v1.0.0</Text>
           </View>
         </Animated.View>
       </View>
@@ -525,5 +644,18 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.cardBorder,
     marginVertical: 8,
+  },
+  permHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  switchCompact: {
+    transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }],
+    marginRight: -4,
+  },
+  scrollContent: {
+    paddingBottom: 16,
   },
 });

@@ -49,68 +49,89 @@ const HIGH_FREQ_THROTTLE_MS = 3000;
 const HEARTBEAT_THROTTLE_MS = 35000;
 const SLOW_CRAWL_DISTANCE_METERS = 15;
 
-// Define background task
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
-  if (error) {
-    console.error('[LocationTask] Background location error:', error);
-    notifyListeners({ error: error.message });
+let activeTrackingMode = 'idle'; // 'background' | 'foreground' | 'idle'
+let foregroundWatcher = null;
+
+async function processLocationSample(coords, isBackground = false) {
+  const now = Date.now();
+  const { latitude, longitude, speed } = coords;
+
+  const sensorData = getSensorMetrics();
+  const hasMotion = sensorData.isSustainedMotion;
+
+  const distanceMoved = lastSentCoords
+    ? getDistanceMeters(lastSentCoords.lat, lastSentCoords.lng, latitude, longitude)
+    : 999;
+
+  // IF accelerometer shows sustained motion OR distance change >= 15m (slow crawl) OR GPS speed >= 5 km/h:
+  const isMoving = hasMotion || distanceMoved >= SLOW_CRAWL_DISTANCE_METERS || (speed != null && (speed * 3.6) >= 5);
+  const requiredInterval = isMoving ? HIGH_FREQ_THROTTLE_MS : HEARTBEAT_THROTTLE_MS;
+
+  if (now - lastSentTime < requiredInterval) {
     return;
   }
 
-  if (data && data.locations && data.locations.length > 0) {
-    const location = data.locations[data.locations.length - 1];
-    const now = Date.now();
-    const { latitude, longitude, speed } = location.coords;
+  lastSentTime = now;
+  lastSentCoords = { lat: latitude, lng: longitude };
 
-    const sensorData = getSensorMetrics();
-    const hasMotion = sensorData.isSustainedMotion;
+  try {
+    const deviceId = await getOrCreateDeviceId();
+    const response = await updateLocationApi({
+      device_id: deviceId,
+      lat: latitude,
+      lng: longitude,
+      timestamp: now,
+    });
 
-    const distanceMoved = lastSentCoords
-      ? getDistanceMeters(lastSentCoords.lat, lastSentCoords.lng, latitude, longitude)
-      : 999;
+    const currentSensors = getSensorMetrics();
+    notifyListeners({
+      lat: latitude,
+      lng: longitude,
+      speed: speed ?? 0,
+      heading: currentSensors.headingDegrees,
+      motionIntensity: currentSensors.motionIntensity,
+      moving_status: response.moving_status,
+      last_updated: now,
+      trackingMode: activeTrackingMode,
+      success: true,
+    });
+  } catch (apiErr) {
+    console.error('[LocationTask] Failed to transmit location:', apiErr.message);
+    notifyListeners({
+      lat: latitude,
+      lng: longitude,
+      error: apiErr.message,
+      trackingMode: activeTrackingMode,
+      success: false,
+    });
+  }
+}
 
-    // IF accelerometer shows sustained motion OR distance change >= 15m (slow crawl) OR GPS speed >= 5 km/h:
-    const isMoving = hasMotion || distanceMoved >= SLOW_CRAWL_DISTANCE_METERS || (speed != null && (speed * 3.6) >= 5);
-    const requiredInterval = isMoving ? HIGH_FREQ_THROTTLE_MS : HEARTBEAT_THROTTLE_MS;
-
-    if (now - lastSentTime < requiredInterval) {
+// Define background task (supported in standalone APK / custom dev client)
+try {
+  TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
+    if (error) {
+      console.error('[LocationTask] Background location error:', error);
+      notifyListeners({ error: error.message });
       return;
     }
 
-    lastSentTime = now;
-    lastSentCoords = { lat: latitude, lng: longitude };
-
-    try {
-      const deviceId = await getOrCreateDeviceId();
-      const response = await updateLocationApi({
-        device_id: deviceId,
-        lat: latitude,
-        lng: longitude,
-        timestamp: now,
-      });
-
-      const sensorData = getSensorMetrics();
-      notifyListeners({
-        lat: latitude,
-        lng: longitude,
-        speed: speed ?? 0,
-        heading: sensorData.headingDegrees,
-        motionIntensity: sensorData.motionIntensity,
-        moving_status: response.moving_status,
-        last_updated: now,
-        success: true,
-      });
-    } catch (apiErr) {
-      console.error('[LocationTask] Failed to transmit location:', apiErr.message);
-      notifyListeners({
-        lat: latitude,
-        lng: longitude,
-        error: apiErr.message,
-        success: false,
-      });
+    if (data && data.locations && data.locations.length > 0) {
+      const location = data.locations[data.locations.length - 1];
+      await processLocationSample(location.coords, true);
     }
+  });
+} catch (taskErr) {
+  console.warn('[LocationTask] TaskManager defineTask notice:', taskErr.message);
+}
+
+export async function isBackgroundLocationAvailable() {
+  try {
+    return await Location.isBackgroundLocationAvailableAsync();
+  } catch {
+    return false;
   }
-});
+}
 
 export async function requestLocationPermissions() {
   const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
@@ -121,20 +142,24 @@ export async function requestLocationPermissions() {
     };
   }
 
-  const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
-  if (backgroundStatus !== 'granted') {
-    return {
-      granted: false,
-      error: 'Background location permission is required to track while screen is off.',
-    };
+  const bgAvailable = await isBackgroundLocationAvailable();
+  if (!bgAvailable) {
+    // In Expo Go on Android, background location is disabled by Google Play policy.
+    // We allow foreground fallback so the developer/driver can still track while app is open.
+    return { granted: true, backgroundSupported: false };
   }
 
-  return { granted: true };
+  const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
+  if (backgroundStatus !== 'granted') {
+    // Background permission not granted, but foreground is granted
+    return { granted: true, backgroundSupported: false };
+  }
+
+  return { granted: true, backgroundSupported: true };
 }
 
 export async function startTracking() {
-  const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
-  if (hasStarted) {
+  if (activeTrackingMode !== 'idle') {
     return true;
   }
 
@@ -143,20 +168,52 @@ export async function startTracking() {
     throw new Error(permissions.error);
   }
 
-  await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-    accuracy: Location.Accuracy.High,
-    timeInterval: 3000,
-    distanceInterval: 2,
-    deferredUpdatesInterval: 3000,
-    showsBackgroundLocationIndicator: true,
-    pausesLocationUpdatesAutomatically: false,
-    foregroundService: {
-      notificationTitle: 'Auto 24 Driver - Active On-Duty',
-      notificationBody: 'Broadcasting live vehicle GPS & sensor telemetry',
-      notificationColor: '#FFCC00',
-      killServiceOnDestroy: false,
-    },
-  });
+  if (permissions.backgroundSupported) {
+    try {
+      const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+      if (!hasStarted) {
+        await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 3000,
+          distanceInterval: 2,
+          deferredUpdatesInterval: 3000,
+          showsBackgroundLocationIndicator: true,
+          pausesLocationUpdatesAutomatically: false,
+          foregroundService: {
+            notificationTitle: 'Auto 24 Driver - Active On-Duty',
+            notificationBody: 'Broadcasting live vehicle GPS & sensor telemetry',
+            notificationColor: '#FFCC00',
+            killServiceOnDestroy: false,
+          },
+        });
+      }
+      activeTrackingMode = 'background';
+    } catch (bgErr) {
+      console.warn('[LocationTask] Background task failed, falling back to foreground watcher:', bgErr.message);
+      // Fallback to foreground watcher
+      activeTrackingMode = 'foreground';
+    }
+  } else {
+    activeTrackingMode = 'foreground';
+  }
+
+  // If foreground fallback is needed (e.g. Expo Go)
+  if (activeTrackingMode === 'foreground') {
+    if (foregroundWatcher) {
+      foregroundWatcher.remove();
+      foregroundWatcher = null;
+    }
+    foregroundWatcher = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 3000,
+        distanceInterval: 2,
+      },
+      (loc) => {
+        processLocationSample(loc.coords, false);
+      }
+    );
+  }
 
   try {
     await startSensorTracking();
@@ -168,22 +225,36 @@ export async function startTracking() {
 }
 
 export async function stopTracking() {
+  if (foregroundWatcher) {
+    try {
+      foregroundWatcher.remove();
+    } catch {}
+    foregroundWatcher = null;
+  }
+
   try {
     const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
     if (hasStarted) {
       await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
     }
   } catch (err) {
-    console.warn('[LocationTask] Error stopping updates:', err);
+    console.warn('[LocationTask] Error stopping background updates:', err);
   }
+
   stopSensorTracking();
+  activeTrackingMode = 'idle';
   return true;
 }
 
 export async function isTrackingActive() {
+  if (activeTrackingMode !== 'idle') return true;
   try {
     return await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
   } catch {
     return false;
   }
+}
+
+export function getTrackingMode() {
+  return activeTrackingMode;
 }

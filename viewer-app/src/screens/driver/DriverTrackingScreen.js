@@ -19,11 +19,13 @@ import {
   startTracking,
   stopTracking,
   subscribeToLocationUpdates,
+  getTrackingMode,
 } from '../../services/driverLocationTask';
 import { clearDriverSession } from '../../services/storage';
 
 export default function DriverTrackingScreen({ profile, onLogOut, onOpenMenu }) {
   const [isTracking, setIsTracking] = useState(true);
+  const [trackingMode, setTrackingMode] = useState(getTrackingMode());
   const [movingStatus, setMovingStatus] = useState('idle');
   const [coords, setCoords] = useState(null);
   const [lastSent, setLastSent] = useState(null);
@@ -36,7 +38,10 @@ export default function DriverTrackingScreen({ profile, onLogOut, onOpenMenu }) 
     async function initTracking() {
       try {
         await startTracking();
-        if (mounted) setIsTracking(true);
+        if (mounted) {
+          setIsTracking(true);
+          setTrackingMode(getTrackingMode());
+        }
       } catch (err) {
         if (mounted) {
           setLastError(err.message);
@@ -58,6 +63,9 @@ export default function DriverTrackingScreen({ profile, onLogOut, onOpenMenu }) 
         if (data.moving_status) {
           setMovingStatus(data.moving_status);
         }
+        if (data.trackingMode) {
+          setTrackingMode(data.trackingMode);
+        }
         setLastSent(new Date(data.last_updated || Date.now()));
         setUpdateCount((c) => c + 1);
       }
@@ -74,10 +82,12 @@ export default function DriverTrackingScreen({ profile, onLogOut, onOpenMenu }) 
       if (isTracking) {
         await stopTracking();
         setIsTracking(false);
+        setTrackingMode('idle');
         setMovingStatus('idle');
       } else {
         await startTracking();
         setIsTracking(true);
+        setTrackingMode(getTrackingMode());
       }
     } catch (err) {
       Alert.alert('Tracking Error', err.message);
@@ -119,7 +129,7 @@ export default function DriverTrackingScreen({ profile, onLogOut, onOpenMenu }) 
             <Text style={styles.menuIcon}>☰</Text>
           </TouchableOpacity>
           <View style={styles.headerInfo}>
-            <Text style={styles.brandTitle}>Auto 24</Text>
+            <Text style={styles.brandTitle}>AutoRadar18</Text>
             <Text style={styles.vehicleNo}>{profile?.vehicle_no || 'Vehicle'}</Text>
           </View>
           <View style={[styles.dutyBadge, { borderColor: statusColor }]}>
@@ -130,11 +140,31 @@ export default function DriverTrackingScreen({ profile, onLogOut, onOpenMenu }) 
           </View>
         </View>
 
-        {/* Foreground Service Notice Card */}
-        <View style={styles.serviceNotice}>
-          <Text style={styles.serviceNoticeTitle}>FOREGROUND SERVICE ACTIVE</Text>
+        {/* Foreground / Background Service Notice Card */}
+        <View
+          style={[
+            styles.serviceNotice,
+            trackingMode === 'foreground' && styles.serviceNoticeForeground,
+          ]}
+        >
+          <Text
+            style={[
+              styles.serviceNoticeTitle,
+              trackingMode === 'foreground' && styles.serviceNoticeForegroundTitle,
+            ]}
+          >
+            {trackingMode === 'foreground'
+              ? '⚡ LIVE BROADCAST ACTIVE (EXPO GO)'
+              : trackingMode === 'background'
+              ? '🛡️ BACKGROUND FOREGROUND SERVICE ACTIVE'
+              : 'BROADCAST PAUSED'}
+          </Text>
           <Text style={styles.serviceNoticeBody}>
-            Continuous background broadcast enabled. A persistent notification is visible in your Android system tray.
+            {trackingMode === 'foreground'
+              ? 'Broadcasting high-accuracy GPS & motion telemetry while app is open. Note: Full background tracking (with screen off) is activated in standalone APK builds.'
+              : trackingMode === 'background'
+              ? 'Continuous background broadcast enabled. A persistent notification is visible in your Android system tray.'
+              : 'Tracking is currently halted. Tap Resume Tracking below to re-broadcast.'}
           </Text>
         </View>
 
@@ -336,6 +366,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 16,
+  },
+  serviceNoticeForeground: {
+    borderLeftColor: '#38BDF8',
+  },
+  serviceNoticeForegroundTitle: {
+    color: '#38BDF8',
   },
   statusCard: {
     backgroundColor: colors.surface,

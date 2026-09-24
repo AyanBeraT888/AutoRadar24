@@ -16,7 +16,7 @@ const NEARBY_OVERVIEW_POLL_MS = 6000;
 // Application State
 let map = null;
 let tileLayer = null;
-let isDarkMap = true;
+let isDarkMap = false; // Light mode OSM maps by default
 let userLocation = null;
 let userMarker = null;
 let radarCircleLayer = null;
@@ -69,6 +69,9 @@ const els = {
   telSpeed: document.getElementById('tel-speed'),
   telAccuracy: document.getElementById('tel-accuracy'),
   telPings: document.getElementById('tel-pings'),
+  gpsBlockedAlert: document.getElementById('gps-blocked-alert'),
+  retryGpsBtn: document.getElementById('retry-gps-btn'),
+  startSimulatedDriverBtn: document.getElementById('start-simulated-driver-btn'),
 
   // Single Flightradar24 Vehicle Profile Card
   frCard: document.getElementById('vehicle-profile-card'),
@@ -284,12 +287,23 @@ function updateRadarCircle() {
 
 /**
 let hasInitiallyCentered = false;
+let hasRealGpsFix = false;
 
 /**
  * Set User Location, Render Blue Pulsing Beacon, and Center Map
  */
-function setUserLocationAndCenter(lat, lng, shouldCenter = true) {
+function setUserLocationAndCenter(lat, lng, shouldCenter = true, isRealGps = false) {
   if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return;
+
+  // If we already received real device GPS, ignore stale/approximate IP estimates
+  if (!isRealGps && hasRealGpsFix) {
+    console.log('[Viewer] Ignoring approximate IP location because real GPS is active');
+    return;
+  }
+
+  if (isRealGps) {
+    hasRealGpsFix = true;
+  }
 
   userLocation = { lat, lng };
 
@@ -306,14 +320,18 @@ function setUserLocationAndCenter(lat, lng, shouldCenter = true) {
     iconAnchor: [22, 22],
   });
 
+  const tooltipText = isRealGps ? 'Your Location (GPS)' : 'Approximate Location (IP/Network)';
+
   if (!userMarker) {
     userMarker = L.marker([lat, lng], { icon: userIcon, zIndexOffset: 1000 }).addTo(map);
-    userMarker.bindTooltip('Your Location', { direction: 'top', offset: [0, -12] });
+    userMarker.bindTooltip(tooltipText, { direction: 'top', offset: [0, -12] });
   } else {
     userMarker.setLatLng([lat, lng]);
+    userMarker.setTooltipContent(tooltipText);
   }
 
-  if (shouldCenter && map) {
+  // Always center if requested, or if real GPS has arrived for the first time
+  if ((shouldCenter || !hasInitiallyCentered) && map) {
     hasInitiallyCentered = true;
     map.flyTo([lat, lng], 16, { duration: 1.2 });
   }
@@ -338,11 +356,18 @@ function initUserLocation(forceCenter = false) {
     setUserLocationAndCenter(
       pos.coords.latitude,
       pos.coords.longitude,
-      forceCenter || !hasInitiallyCentered
+      forceCenter || !hasInitiallyCentered,
+      true
     );
   };
 
   const onFinalError = async () => {
+    // If native GPS bridge already supplied real coordinates, skip IP fallback completely
+    if (hasRealGpsFix) {
+      if (els.locateMeBtn) els.locateMeBtn.classList.remove('locating');
+      return;
+    }
+
     console.warn('[Viewer] Browser GPS unavailable or timed out. Falling back to IP Geolocation...');
     try {
       const res = await fetch('https://ipwho.is/');
@@ -353,7 +378,8 @@ function initUserLocation(forceCenter = false) {
           setUserLocationAndCenter(
             data.latitude,
             data.longitude,
-            forceCenter || !hasInitiallyCentered
+            forceCenter || !hasInitiallyCentered,
+            false // Marked as IP fallback
           );
           return;
         }
@@ -392,7 +418,7 @@ function initUserLocation(forceCenter = false) {
   try {
     navigator.geolocation.watchPosition(
       (pos) => {
-        setUserLocationAndCenter(pos.coords.latitude, pos.coords.longitude, false);
+        setUserLocationAndCenter(pos.coords.latitude, pos.coords.longitude, false, true);
       },
       () => {},
       { enableHighAccuracy: true, maximumAge: 15000 }
@@ -401,9 +427,10 @@ function initUserLocation(forceCenter = false) {
 }
 
 // Native App Bridge: allows React Native WebView (viewer-app) to inject precise GPS directly
-window.handleNativeLocation = function (lat, lng, accuracy) {
-  console.log('[Viewer Native Bridge] Received location from app:', lat, lng, 'accuracy:', accuracy);
-  setUserLocationAndCenter(Number(lat), Number(lng), !hasInitiallyCentered);
+window.handleNativeLocation = function (lat, lng, accuracy, forceCenter = false) {
+  console.log('[Viewer Native Bridge] Received real device GPS:', lat, lng, 'accuracy:', accuracy);
+  const shouldCenter = forceCenter || !hasRealGpsFix || !hasInitiallyCentered;
+  setUserLocationAndCenter(Number(lat), Number(lng), shouldCenter, true);
 };
 
 // Listen for messages from React Native WebView
@@ -411,7 +438,7 @@ window.addEventListener('message', (event) => {
   try {
     const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
     if (data && (data.type === 'USER_LOCATION' || data.type === 'LOCATION')) {
-      window.handleNativeLocation(data.lat, data.lng, data.accuracy);
+      window.handleNativeLocation(data.lat, data.lng, data.accuracy, data.forceCenter);
     }
   } catch (e) {}
 });
@@ -419,7 +446,7 @@ document.addEventListener('message', (event) => {
   try {
     const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
     if (data && (data.type === 'USER_LOCATION' || data.type === 'LOCATION')) {
-      window.handleNativeLocation(data.lat, data.lng, data.accuracy);
+      window.handleNativeLocation(data.lat, data.lng, data.accuracy, data.forceCenter);
     }
   } catch (e) {}
 });
@@ -499,7 +526,7 @@ function hideFallbackScreen() {
 /**
  * Show / Hide Floating Network Toast Banner
  */
-function showNetworkToast(msg = 'Reconnecting to Auto 24 radar...') {
+function showNetworkToast(msg = 'Reconnecting to AutoRadar18 radar...') {
   if (els.networkToast) {
     if (els.toastMsg) els.toastMsg.textContent = msg;
     els.networkToast.classList.remove('hidden');
@@ -621,6 +648,58 @@ async function fetchNearbyVehicles() {
       }
     });
 
+    // Automatic Radius Expansion:
+    // If no autos are found within the user's initial radius, automatically expand the radar radius to find nearest autos
+    if (userLocation && countInRadius === 0 && searchRadiusKm < 999 && drivers.length > 0) {
+      let nearestDistKm = Infinity;
+      drivers.forEach((driver) => {
+        if (driver.lat != null && driver.lng != null) {
+          const d = computeDistanceKm(userLocation.lat, userLocation.lng, Number(driver.lat), Number(driver.lng));
+          if (d < nearestDistKm) {
+            nearestDistKm = d;
+          }
+        }
+      });
+
+      if (nearestDistKm !== Infinity && nearestDistKm > searchRadiusKm && nearestDistKm <= 25) {
+        let expandedRadius = searchRadiusKm;
+        if (nearestDistKm <= 2.0) expandedRadius = 2.0;
+        else if (nearestDistKm <= 3.0) expandedRadius = 3.0;
+        else if (nearestDistKm <= 5.0) expandedRadius = 5.0;
+        else if (nearestDistKm <= 10.0) expandedRadius = 10.0;
+        else expandedRadius = Math.min(25, Math.ceil(nearestDistKm));
+
+        if (expandedRadius > searchRadiusKm) {
+          searchRadiusKm = expandedRadius;
+          localStorage.setItem('auto24_radius_km', String(searchRadiusKm));
+          updateRadarCircle();
+          showNetworkToast(`🔍 Radar auto-expanded to ${searchRadiusKm} km to locate nearest autos`);
+
+          // Re-evaluate drivers with expanded radius
+          countInRadius = 0;
+          drivers.forEach((driver) => {
+            const id = String(driver.driver_id);
+            if (driver.lat != null && driver.lng != null) {
+              const dKm = computeDistanceKm(userLocation.lat, userLocation.lng, Number(driver.lat), Number(driver.lng));
+              if (dKm <= searchRadiusKm) {
+                countInRadius++;
+                currentRenderedIds.add(id);
+                const isSelected = String(currentDriverId) === id;
+                const icon = createVehicleIcon(driver.moving_status, driver.vehicle_no, isSelected);
+                if (!activeMarkers.has(id)) {
+                  const marker = L.marker([Number(driver.lat), Number(driver.lng)], { icon }).addTo(map);
+                  marker.on('click', () => selectDriver(driver.driver_id));
+                  activeMarkers.set(id, marker);
+                } else {
+                  activeMarkers.get(id).setLatLng([Number(driver.lat), Number(driver.lng)]).setIcon(icon);
+                }
+              }
+            }
+          });
+        }
+      }
+    }
+
     for (const [id, marker] of activeMarkers.entries()) {
       if (!currentRenderedIds.has(id) && id !== String(currentDriverId)) {
         map.removeLayer(marker);
@@ -633,13 +712,24 @@ async function fetchNearbyVehicles() {
         els.nearbyCountText.textContent = `${countInRadius} ${countInRadius === 1 ? 'Auto' : 'Autos'} Online`;
       } else {
         const radiusStr = searchRadiusKm < 1 ? `${Math.round(searchRadiusKm * 1000)}m` : `${searchRadiusKm}km`;
-        els.nearbyCountText.textContent = `${countInRadius} ${countInRadius === 1 ? 'Auto' : 'Autos'} within ${radiusStr}`;
+        els.nearbyCountText.textContent = `${countInRadius} ${countInRadius === 1 ? 'Auto' : 'Autos'} in Radar (${radiusStr})`;
       }
     }
 
     if (els.passengerFleetCount) {
-      els.passengerFleetCount.textContent = `${countInRadius} active`;
+      els.passengerFleetCount.textContent = `${countInRadius} in radar`;
     }
+
+    // Sync live radar count to native mobile app (viewer-app)
+    try {
+      if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'RADAR_COUNT_UPDATE',
+          count: countInRadius,
+          radiusKm: searchRadiusKm,
+        }));
+      }
+    } catch {}
   } catch (err) {
     consecutiveErrors++;
     console.warn('[Viewer] Could not refresh nearby autos:', err.message);
@@ -652,71 +742,44 @@ async function fetchNearbyVehicles() {
 }
 
 /**
- * Update the SINGLE Flightradar24-style Vehicle Profile Card
- * "card strictly contain -> 1. owner name 2. vehicle no. 3. toto model 4. a graphical picture of toto instead of actual photo"
+ * Update the COMPACT Vehicle Telemetry Card
+ * Strictly keep info only about:
+ * 1. Owner Name
+ * 2. If they put no. of toto then otherwise null
+ * 3. Current Speed
+ * 4. Heading / Bearing
+ * 5. Signal with Ping
  */
 function updateSelectedDriverCard(driver) {
   if (!driver) return;
   currentDriverData = driver;
 
   // 1. Owner Name
-  els.frOwnerName.textContent = driver.name || 'Auto Driver';
+  const rawOwner = driver.name ? String(driver.name).trim() : '';
+  const displayOwner = (rawOwner !== '' && rawOwner.toLowerCase() !== 'null' && rawOwner.toLowerCase() !== 'undefined')
+    ? rawOwner
+    : 'null';
+  if (els.frOwnerName) {
+    els.frOwnerName.textContent = displayOwner;
+    els.frOwnerName.title = displayOwner;
+  }
 
-  // 2. Vehicle No
-  els.frVehicleNo.textContent = driver.vehicle_no || 'AUTO-24';
+  // 2. No. of Toto (if they put no. of toto then otherwise null)
+  const rawPlate = driver.vehicle_no ? String(driver.vehicle_no).trim() : '';
+  const hasValidPlate = rawPlate !== '' && rawPlate.toLowerCase() !== 'null' && rawPlate.toLowerCase() !== 'undefined';
+  const displayPlate = hasValidPlate ? rawPlate : 'null';
 
-  // 3. Toto Model
-  const modelName = getVehicleModelName(driver);
-  els.frModelName.textContent = modelName;
-  els.frModelName.title = modelName;
+  if (els.frVehicleNo) {
+    els.frVehicleNo.textContent = displayPlate;
+    if (displayPlate === 'null') {
+      els.frVehicleNo.classList.add('text-null');
+    } else {
+      els.frVehicleNo.classList.remove('text-null');
+    }
+  }
 
-  const isAuto = modelName.toLowerCase().includes('auto');
-  els.frTypeBadge.textContent = isAuto ? 'AUTO-3W' : 'TOTO-EV';
-  els.frTypeBadge.className = 'fr-tag ' + (isAuto ? 'fr-tag-brand' : 'fr-tag-type');
-
-  // 4. Graphical Picture of Toto / Auto (User's exact 3D GLB model + fallback)
+  // 3. Current Speed
   const isMoving = driver.moving_status === 'moving';
-  const imgPath = isMoving ? './assets/auto-3d-yellow.png' : './assets/auto-3d-red.png';
-  const glbPath = isMoving ? './assets/tuktuk_moving_yellow.glb' : './assets/tuktuk_idle_red.glb';
-
-  if (els.fr3dModel) {
-    if (els.fr3dModel.getAttribute('src') !== glbPath) {
-      els.fr3dModel.setAttribute('src', glbPath);
-    }
-  }
-  if (els.frGraphicImg) {
-    els.frGraphicImg.src = imgPath;
-  }
-  if (els.frGraphicLabel) {
-    els.frGraphicLabel.textContent = isMoving ? '© Auto 24 • 3D Yellow Model' : '© Auto 24 • 3D Red Idle Model';
-  }
-
-  // Telemetry: Moving vs Idle vs Traffic Jam
-  const isJammed = driver.moving_status === 'jammed' || Boolean(driver.in_traffic_jam);
-  if (isJammed) {
-    els.frStatusCode.textContent = 'JAM';
-    els.frStatusText.textContent = 'TRAFFIC JAM';
-    els.frStatusText.style.color = '#f59e0b';
-    els.frStatusDetail.textContent = 'CONGESTION DETECTED (2+ MIN)';
-    els.frCenterIconBadge.style.borderColor = 'rgba(245, 158, 11, 0.6)';
-    if (els.frGraphicLabel) {
-      els.frGraphicLabel.textContent = '© Auto 24 • Traffic Congestion Cluster';
-    }
-  } else if (isMoving) {
-    els.frStatusCode.textContent = 'MOV';
-    els.frStatusText.textContent = 'MOVING';
-    els.frStatusText.style.color = '#ffcc00';
-    els.frStatusDetail.textContent = 'TRACKING ACTIVE';
-    els.frCenterIconBadge.style.borderColor = 'rgba(255, 204, 0, 0.4)';
-  } else {
-    els.frStatusCode.textContent = 'IDLE';
-    els.frStatusText.textContent = 'STATIONARY';
-    els.frStatusText.style.color = '#ff3b30';
-    els.frStatusDetail.textContent = 'VEHICLE IDLE';
-    els.frCenterIconBadge.style.borderColor = 'rgba(255, 59, 48, 0.4)';
-  }
-
-  // Speed Calculation
   let speedKmh = 0;
   if (driver.speed_kmh != null && Number(driver.speed_kmh) > 0) {
     speedKmh = Math.round(driver.speed_kmh);
@@ -729,14 +792,15 @@ function updateSelectedDriverCard(driver) {
   } else if (isMoving) {
     speedKmh = 18;
   }
-  els.frSpeedVal.textContent = isMoving ? (speedKmh || 18) : 0;
+  if (els.frSpeedVal) {
+    els.frSpeedVal.textContent = isMoving ? (speedKmh || 18) : 0;
+  }
 
-  // Heading & Coordinates
+  // 4. Heading / Bearing
   let heading = driver.heading || 0;
   if (driver.lat != null && driver.lng != null) {
     const lat = Number(driver.lat);
     const lng = Number(driver.lng);
-    els.frMetricCoords.textContent = `${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E`;
 
     if (previousPoint && (previousPoint.lat !== lat || previousPoint.lng !== lng)) {
       heading = computeBearing(previousPoint.lat, previousPoint.lng, lat, lng);
@@ -746,34 +810,46 @@ function updateSelectedDriverCard(driver) {
     if (autoRecenter) {
       map.panTo([lat, lng], { animate: true, duration: 0.5 });
     }
-  } else {
-    els.frMetricCoords.textContent = 'Waiting for GPS';
+  }
+  if (els.frMetricHeading) {
+    els.frMetricHeading.innerHTML = `${Math.round(heading)}° <span class="sub-text">(${getCardinalDirection(heading)})</span>`;
   }
 
-  els.frMetricHeading.textContent = `${heading}° (${getCardinalDirection(heading)})`;
-
-  // Last Ping elapsed time
+  // 5. Signal with Ping
+  const signalDot = document.getElementById('signal-dot');
   if (driver.last_updated) {
     const elapsedSec = Math.max(0, Math.round((Date.now() - Number(driver.last_updated)) / 1000));
+    let pingText = '';
     if (elapsedSec < 5) {
-      els.frMetricPing.textContent = 'Just now';
+      pingText = 'Just now';
     } else if (elapsedSec < 60) {
-      els.frMetricPing.textContent = `${elapsedSec}s ago`;
+      pingText = `${elapsedSec}s ago`;
     } else {
-      els.frMetricPing.textContent = `${Math.round(elapsedSec / 60)}m ago`;
+      pingText = `${Math.round(elapsedSec / 60)}m ago`;
     }
 
-    if (elapsedSec <= 15) {
-      els.frMetricSignal.className = 'fr-cell-value text-green';
-      els.frMetricSignal.textContent = '● Live (3s GPS ping)';
-    } else {
-      els.frMetricSignal.className = 'fr-cell-value';
-      els.frMetricSignal.style.color = '#ff3b30';
-      els.frMetricSignal.textContent = `● Idle (${elapsedSec}s since ping)`;
+    if (els.frMetricPing) {
+      els.frMetricPing.textContent = `(${pingText})`;
+    }
+
+    if (els.frMetricSignal) {
+      if (elapsedSec <= 15) {
+        els.frMetricSignal.className = 'status-text';
+        els.frMetricSignal.innerHTML = `Live <span id="fr-metric-ping" class="sub-text">(${pingText})</span>`;
+        if (signalDot) signalDot.className = 'signal-dot-ring';
+      } else {
+        els.frMetricSignal.className = 'status-text idle';
+        els.frMetricSignal.innerHTML = `Idle <span id="fr-metric-ping" class="sub-text">(${pingText})</span>`;
+        if (signalDot) signalDot.className = 'signal-dot-ring idle';
+      }
     }
   } else {
-    els.frMetricPing.textContent = 'No pings recorded';
-    els.frMetricSignal.textContent = '● Standby';
+    if (els.frMetricPing) els.frMetricPing.textContent = '(None)';
+    if (els.frMetricSignal) {
+      els.frMetricSignal.className = 'status-text idle';
+      els.frMetricSignal.innerHTML = `Standby <span id="fr-metric-ping" class="sub-text">(Waiting)</span>`;
+      if (signalDot) signalDot.className = 'signal-dot-ring idle';
+    }
   }
 
   // Update map marker icon if present
@@ -795,9 +871,12 @@ async function fetchSelectedDriverData() {
     const res = await fetch(`${API_BASE}/driver/${currentDriverId}`);
     if (!res.ok) {
       if (res.status === 404) {
-        els.frStatusCode.textContent = 'OFF';
-        els.frStatusText.textContent = 'OFFLINE';
-        els.frStatusDetail.textContent = 'NOT IN DATABASE';
+        const signalDot = document.getElementById('signal-dot');
+        if (els.frMetricSignal) {
+          els.frMetricSignal.className = 'status-text offline';
+          els.frMetricSignal.innerHTML = `Offline <span class="sub-text">(Not found)</span>`;
+        }
+        if (signalDot) signalDot.className = 'signal-dot-ring offline';
         return;
       }
       throw new Error(`HTTP ${res.status}`);
@@ -1014,6 +1093,69 @@ function setupSettingsUI() {
     updateRadarCircle();
   });
 
+  // Device Permissions & Services Toggles
+  function setupPermissionSwitch(id, altId, onChange) {
+    const sw1 = document.getElementById(id);
+    const sw2 = altId ? document.getElementById(altId) : null;
+    const handleChange = (checked) => {
+      if (sw1) sw1.checked = checked;
+      if (sw2) sw2.checked = checked;
+      onChange(checked);
+    };
+    if (sw1) sw1.addEventListener('change', (e) => handleChange(e.target.checked));
+    if (sw2) sw2.addEventListener('change', (e) => handleChange(e.target.checked));
+  }
+
+  // 1. Precise Location (GPS) Toggle
+  setupPermissionSwitch('toggle-perm-gps', 'toggle-perm-gps-modal', (enabled) => {
+    if (enabled) {
+      // Re-enable GPS if previously declined or turned off
+      initUserLocation(true);
+      if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REQUEST_LOCATION' }));
+      }
+    } else {
+      if (userMarker && map) {
+        map.removeLayer(userMarker);
+        userMarker = null;
+      }
+      if (radarCircleLayer && map) {
+        map.removeLayer(radarCircleLayer);
+        radarCircleLayer = null;
+      }
+      userLocation = null;
+      showNetworkToast('📍 GPS Location Disabled');
+    }
+  });
+
+  // 2. Motion & Compass Toggle
+  setupPermissionSwitch('toggle-perm-motion', 'toggle-perm-motion-modal', (enabled) => {
+    localStorage.setItem('auto24_motion_enabled', String(enabled));
+    if (!enabled) {
+      showNetworkToast('🧭 Compass & Heading Tracking Paused');
+    } else {
+      showNetworkToast('🧭 Compass & Orientation Enabled');
+    }
+  });
+
+  // 3. Network & Telemetry Toggle
+  setupPermissionSwitch('toggle-perm-network', 'toggle-perm-network-modal', (enabled) => {
+    localStorage.setItem('auto24_network_enabled', String(enabled));
+    if (!enabled) {
+      if (overviewTimer) {
+        clearInterval(overviewTimer);
+        overviewTimer = null;
+      }
+      showNetworkToast('🌐 Cloud Telemetry Paused');
+    } else {
+      if (!overviewTimer) {
+        overviewTimer = setInterval(fetchNearbyVehicles, NEARBY_OVERVIEW_POLL_MS);
+      }
+      fetchNearbyVehicles();
+      showNetworkToast('🌐 Cloud Telemetry Streaming Active');
+    }
+  });
+
   if (els.settingsBtn) {
     els.settingsBtn.addEventListener('click', () => {
       syncSettingsView();
@@ -1080,6 +1222,11 @@ function setupEventListeners() {
   if (els.locateMeBtn) {
     els.locateMeBtn.addEventListener('click', () => {
       els.locateMeBtn.classList.add('locating');
+      try {
+        if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REQUEST_LOCATION' }));
+        }
+      } catch {}
       if (userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lng === 'number') {
         map.flyTo([userLocation.lat, userLocation.lng], 16, { duration: 1.2 });
         setTimeout(() => els.locateMeBtn.classList.remove('locating'), 1200);
@@ -1245,9 +1392,95 @@ async function broadcastDriverPosition(pos) {
   }
 }
 
+let isSimulationActive = false;
+let simulationInterval = null;
+let simAngle = 0;
+
+function hideGpsBlockedAlert() {
+  if (els.gpsBlockedAlert) {
+    els.gpsBlockedAlert.classList.add('hidden');
+  }
+}
+
+function showGpsBlockedAlert(reason = 'PERMISSION_DENIED') {
+  if (els.gpsBlockedAlert) {
+    els.gpsBlockedAlert.classList.remove('hidden');
+  }
+  if (els.telStatus) {
+    els.telStatus.textContent = 'GPS BLOCKED';
+    els.telStatus.className = 'telemetry-val off';
+  }
+}
+
+function startSimulatedDriver() {
+  hideGpsBlockedAlert();
+  if (driverWatchId !== null) {
+    navigator.geolocation.clearWatch(driverWatchId);
+    driverWatchId = null;
+  }
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+    simulationInterval = null;
+  }
+
+  isSimulationActive = true;
+  isDriverBroadcasting = true;
+  broadcastPingCount = 0;
+
+  if (els.driverToggleBroadcastBtn) {
+    els.driverToggleBroadcastBtn.classList.add('broadcasting');
+  }
+  if (els.driverBroadcastBtnText) {
+    els.driverBroadcastBtnText.textContent = 'STOP TRANSMITTING / GO OFFLINE';
+  }
+  if (els.telStatus) {
+    els.telStatus.textContent = 'ONLINE (DEMO)';
+    els.telStatus.className = 'telemetry-val on';
+  }
+
+  registerDriverIfNeeded();
+
+  // Base coordinates: user location or default Kolkata transit node
+  const baseLat = (userLocation && typeof userLocation.lat === 'number') ? userLocation.lat : 22.5726;
+  const baseLng = (userLocation && typeof userLocation.lng === 'number') ? userLocation.lng : 88.3639;
+
+  const simulateStep = () => {
+    if (!isDriverBroadcasting || !isSimulationActive) return;
+    simAngle = (simAngle + 0.08) % (2 * Math.PI);
+    const lat = baseLat + 0.0035 * Math.sin(simAngle);
+    const lng = baseLng + 0.0045 * Math.cos(simAngle);
+    const speed = 7.5 + 2.5 * Math.sin(simAngle * 2); // ~27-36 km/h
+
+    broadcastDriverPosition({
+      coords: {
+        latitude: lat,
+        longitude: lng,
+        speed: speed,
+        accuracy: 4,
+      }
+    });
+
+    if (els.telStatus) {
+      els.telStatus.textContent = 'ONLINE (DEMO)';
+      els.telStatus.className = 'telemetry-val on';
+    }
+  };
+
+  simulateStep();
+  simulationInterval = setInterval(simulateStep, 2500);
+  syncModeUI();
+}
+
 function startDriverBroadcasting() {
+  hideGpsBlockedAlert();
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+    simulationInterval = null;
+  }
+  isSimulationActive = false;
+
   if (!navigator.geolocation) {
-    alert('Geolocation is not supported by your browser. Please use a modern browser to broadcast.');
+    showGpsBlockedAlert('NOT_SUPPORTED');
     return;
   }
 
@@ -1266,16 +1499,44 @@ function startDriverBroadcasting() {
 
   registerDriverIfNeeded();
 
-  driverWatchId = navigator.geolocation.watchPosition(
-    (pos) => broadcastDriverPosition(pos),
-    (err) => {
-      console.warn('[Driver] watchPosition error:', err);
-      if (els.telStatus) {
-        els.telStatus.textContent = 'GPS BLOCKED';
-        els.telStatus.className = 'telemetry-val off';
-      }
+  const onWatchError = (err) => {
+    console.warn('[Driver] Geolocation error:', err);
+    showGpsBlockedAlert(err && err.code === 1 ? 'PERMISSION_DENIED' : 'UNAVAILABLE');
+  };
+
+  // Try GPS with multi-stage fallback (High accuracy -> Balanced accuracy)
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      broadcastDriverPosition(pos);
+      driverWatchId = navigator.geolocation.watchPosition(
+        (p) => broadcastDriverPosition(p),
+        onWatchError,
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
+      );
     },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
+    (err) => {
+      console.warn('[Driver] High accuracy location failed, attempting balanced mode:', err);
+      if (err && err.code === 1) {
+        // User explicitly denied permission in browser
+        onWatchError(err);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          broadcastDriverPosition(pos);
+          driverWatchId = navigator.geolocation.watchPosition(
+            (p) => broadcastDriverPosition(p),
+            onWatchError,
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 5000 }
+          );
+        },
+        () => {
+          onWatchError(err);
+        },
+        { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }
+      );
+    },
+    { enableHighAccuracy: true, timeout: 6000, maximumAge: 5000 }
   );
 
   syncModeUI();
@@ -1283,10 +1544,17 @@ function startDriverBroadcasting() {
 
 function stopDriverBroadcasting() {
   isDriverBroadcasting = false;
+  isSimulationActive = false;
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+    simulationInterval = null;
+  }
   if (driverWatchId !== null) {
     navigator.geolocation.clearWatch(driverWatchId);
     driverWatchId = null;
   }
+  hideGpsBlockedAlert();
+
   if (els.driverToggleBroadcastBtn) {
     els.driverToggleBroadcastBtn.classList.remove('broadcasting');
   }
@@ -1355,6 +1623,18 @@ function setupModeSwitcherUI() {
     els.driverToggleBroadcastBtn.addEventListener('click', toggleDriverBroadcast);
   }
 
+  if (els.retryGpsBtn) {
+    els.retryGpsBtn.addEventListener('click', () => {
+      startDriverBroadcasting();
+    });
+  }
+
+  if (els.startSimulatedDriverBtn) {
+    els.startSimulatedDriverBtn.addEventListener('click', () => {
+      startSimulatedDriver();
+    });
+  }
+
   syncModeUI();
 }
 
@@ -1366,6 +1646,13 @@ window.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   setupModeSwitcherUI();
   initUserLocation();
+
+  // Notify native container that the map is ready for GPS injection
+  try {
+    if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'MAP_READY' }));
+    }
+  } catch {}
 
   // Slow network helper: If map skeleton is still displayed after 3.5s, inform the user
   slowNetworkTimer = setTimeout(() => {
@@ -1379,12 +1666,28 @@ window.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
   const driverParam = urlParams.get('driver') || urlParams.get('id');
 
-  if (driverParam) {
-    selectDriver(driverParam);
-  } else {
-    els.homeBar.classList.remove('hud-hidden');
-    els.frCard.classList.add('fr-hidden');
-  }
-
   overviewTimer = setInterval(fetchNearbyVehicles, NEARBY_OVERVIEW_POLL_MS);
+});
+
+// Native Bridge Helpers
+window.openSettingsModal = function () {
+  if (els.settingsModal) {
+    els.settingsModal.classList.remove('hidden');
+    const syncFn = window._syncSettingsView || (typeof syncSettingsView === 'function' ? syncSettingsView : null);
+    if (syncFn) syncFn();
+  }
+};
+
+if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+  document.body.classList.add('in-webview');
+}
+
+// React Native WebView message bridge for actions
+window.addEventListener('message', (event) => {
+  try {
+    const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+    if (data && data.type === 'OPEN_RADAR_SETTINGS') {
+      window.openSettingsModal();
+    }
+  } catch (e) {}
 });

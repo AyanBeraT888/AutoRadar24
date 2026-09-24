@@ -63,7 +63,7 @@ function initSQLite() {
       phone TEXT NOT NULL,
       vehicle_no TEXT NOT NULL,
       device_id TEXT UNIQUE NOT NULL,
-      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+      status TEXT DEFAULT 'approved' CHECK(status IN ('pending', 'approved', 'rejected')),
       lat REAL,
       lng REAL,
       moving_status TEXT DEFAULT 'idle' CHECK(moving_status IN ('moving', 'idle')),
@@ -115,7 +115,7 @@ if (useMySQL) {
           phone VARCHAR(50) NOT NULL,
           vehicle_no VARCHAR(50) NOT NULL,
           device_id VARCHAR(100) UNIQUE NOT NULL,
-          status VARCHAR(20) DEFAULT 'pending',
+          status VARCHAR(20) DEFAULT 'approved',
           lat DOUBLE NULL,
           lng DOUBLE NULL,
           moving_status VARCHAR(20) DEFAULT 'idle',
@@ -144,19 +144,19 @@ if (useMySQL) {
 // ==========================================
 
 /**
- * Register a new driver or update existing record.
+ * Register a new driver or update existing record with auto-approval.
  */
 async function registerDriver({ name, phone, vehicle_no, device_id }) {
   const existing = await getDriverByDeviceId(device_id);
   if (existing) {
     if (useMySQL) {
       await pool.query(
-        'UPDATE drivers SET name = ?, phone = ?, vehicle_no = ? WHERE device_id = ?',
+        "UPDATE drivers SET name = ?, phone = ?, vehicle_no = ?, status = 'approved' WHERE device_id = ?",
         [name, phone, vehicle_no, device_id]
       );
     } else {
       const updateStmt = sqliteDb.prepare(
-        'UPDATE drivers SET name = ?, phone = ?, vehicle_no = ? WHERE device_id = ?'
+        "UPDATE drivers SET name = ?, phone = ?, vehicle_no = ?, status = 'approved' WHERE device_id = ?"
       );
       updateStmt.run(name, phone, vehicle_no, device_id);
     }
@@ -166,13 +166,13 @@ async function registerDriver({ name, phone, vehicle_no, device_id }) {
   const now = Date.now();
   if (useMySQL) {
     const [result] = await pool.query(
-      "INSERT INTO drivers (name, phone, vehicle_no, device_id, status, moving_status, created_at) VALUES (?, ?, ?, ?, 'pending', 'idle', ?)",
+      "INSERT INTO drivers (name, phone, vehicle_no, device_id, status, moving_status, created_at) VALUES (?, ?, ?, ?, 'approved', 'idle', ?)",
       [name, phone, vehicle_no, device_id, now]
     );
     return getDriverById(result.insertId);
   } else {
     const insertStmt = sqliteDb.prepare(
-      "INSERT INTO drivers (name, phone, vehicle_no, device_id, status, moving_status, created_at) VALUES (?, ?, ?, ?, 'pending', 'idle', ?)"
+      "INSERT INTO drivers (name, phone, vehicle_no, device_id, status, moving_status, created_at) VALUES (?, ?, ?, ?, 'approved', 'idle', ?)"
     );
     const result = insertStmt.run(name, phone, vehicle_no, device_id, now);
     return getDriverById(result.lastInsertRowid);

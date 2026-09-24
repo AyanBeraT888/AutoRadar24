@@ -5,6 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 const KEYS = {
   SERVER_URL: '@auto24_server_url',
@@ -16,18 +17,36 @@ const KEYS = {
   ACTIVE_MODE: '@auto24_active_mode', // 'passenger' | 'driver'
 };
 
-// Default server resolution:
-// 1. Inlined at build-time from EXPO_PUBLIC_API_URL (e.g. your Cloudflare Tunnel or Render URL)
-// 2. Android Emulator fallback: http://10.0.2.2:3000
-// 3. iOS Simulator / Web fallback: http://localhost:3000
-export const DEFAULT_SERVER_URL =
-  (process.env.EXPO_PUBLIC_API_URL && process.env.EXPO_PUBLIC_API_URL.trim())
-    ? process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '')
-    : (Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000');
+function resolveDefaultServerUrl() {
+  if (process.env.EXPO_PUBLIC_API_URL && process.env.EXPO_PUBLIC_API_URL.trim()) {
+    return process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '');
+  }
+
+  // Detect host machine IP when running on physical device in Expo Go / local network
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    Constants.manifest2?.extra?.expoGo?.debuggerHost ||
+    Constants.manifest?.debuggerHost;
+
+  if (hostUri) {
+    const hostIp = hostUri.split(':')[0];
+    if (hostIp && hostIp !== 'localhost' && hostIp !== '127.0.0.1') {
+      return `http://${hostIp}:3000`;
+    }
+  }
+
+  return Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
+}
+
+export const DEFAULT_SERVER_URL = resolveDefaultServerUrl();
 
 export async function getServerUrl() {
   try {
     const saved = await AsyncStorage.getItem(KEYS.SERVER_URL);
+    // If the saved URL is the emulator 10.0.2.2 address but we are running on a physical phone with LAN IP, use LAN IP
+    if (saved && saved.includes('10.0.2.2') && DEFAULT_SERVER_URL !== 'http://10.0.2.2:3000') {
+      return DEFAULT_SERVER_URL;
+    }
     return saved || DEFAULT_SERVER_URL;
   } catch {
     return DEFAULT_SERVER_URL;

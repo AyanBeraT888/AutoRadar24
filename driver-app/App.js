@@ -80,7 +80,7 @@ export default function App() {
   // Handlers for state transitions
   const handleRegistered = (profile) => {
     setDriverProfile(profile);
-    setAppState(APP_STATE.PENDING);
+    setAppState(APP_STATE.TRACKING);
   };
 
   const handleApproved = (serverDriver) => {

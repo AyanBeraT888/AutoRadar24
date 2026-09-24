@@ -96,7 +96,7 @@ export default function DriverPendingScreen({ profile, onApproved, onReset, onOp
           <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleBox}>
-          <Text style={styles.brandTitle}>Auto 24</Text>
+          <Text style={styles.brandTitle}>AutoRadar18</Text>
           <Text style={styles.tagline}>Verification Status</Text>
         </View>
         <View style={styles.menuBtnPlaceholder} />

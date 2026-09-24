@@ -131,17 +131,24 @@ app.post('/register-driver', registerLimiter, async (req, res) => {
       device_id: device_id.trim(),
     });
 
+    const authToken = generateDriverToken({
+      driver_id: driver.driver_id,
+      device_id: driver.device_id,
+      status: 'approved',
+    });
+
     res.status(201).json({
       success: true,
-      message: 'Driver registration received. Waiting for approval.',
+      message: 'Driver registration automatically approved.',
       driver: {
         driver_id: driver.driver_id,
         name: driver.name,
         phone: driver.phone,
         vehicle_no: driver.vehicle_no,
         device_id: driver.device_id,
-        status: driver.status,
+        status: 'approved',
       },
+      auth_token: authToken,
     });
   } catch (err) {
     console.error('Error in /register-driver:', err);

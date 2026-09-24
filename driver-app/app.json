@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "Auto 24 Driver",
-    "slug": "auto24-driver",
+    "name": "AutoRadar18 Driver",
+    "slug": "autoradar18-driver",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "android": {
-      "package": "com.auto24.driver",
+      "package": "com.autoradar18.driver",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -23,16 +23,21 @@
         "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
         "HIGH_SAMPLING_RATE_SENSORS",
         "ACTIVITY_RECOGNITION",
-        "INTERNET"
+        "INTERNET",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "plugins": [
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Auto 24 requires location access to broadcast your vehicle position while on duty.",
-          "locationAlwaysPermission": "Auto 24 broadcasts your live position in the background even when your screen is locked.",
-          "locationWhenInUsePermission": "Auto 24 requires location access to transmit live coordinates.",
+          "locationAlwaysAndWhenInUsePermission": "AutoRadar18 requires location access to broadcast your vehicle position while on duty.",
+          "locationAlwaysPermission": "AutoRadar18 broadcasts your live position in the background even when your screen is locked.",
+          "locationWhenInUsePermission": "AutoRadar18 requires location access to transmit live coordinates.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
@@ -47,6 +52,12 @@
           "backgroundColor": "#0F172A"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "81864fb5-8498-4fb5-bd27-edfc0587e570"
+      }
+    },
+    "owner": "ayanberat888s-team"
   }
 }

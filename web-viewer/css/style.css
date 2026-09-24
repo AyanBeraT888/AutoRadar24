@@ -96,6 +96,11 @@ html {
   pointer-events: none;
 }
 
+/* Hide duplicate home bar when running inside React Native native app */
+body.in-webview #home-bar {
+  display: none !important;
+}
+
 .home-actions {
   display: flex;
   align-items: center;
@@ -612,463 +617,268 @@ body.has-selected-vehicle .fab-locate-btn {
    FLIGHTRADAR24 SINGLE VEHICLE PROFILE CARD (Matching Image 1)
    "profile card should looks like this one single card not two(currently my app has two - top and bottom bar) 
     card strictly contain -> 1. owner name 2. vehicle no. 3. toto model 4. a graphical picture of toto instead of actual photo"
+/* ============================================================
+   CUSTOM DRIVER PROFILE CARD (Covers 23% screen space)
+   Matches user SVG diagram: Driver name (no avatar), Toto No badge,
+   Speed, Heading, Signal with ping, 23% height, left accent bar.
    ============================================================ */
-.fr-card {
+.fr-card,
+.compact-driver-card,
+.custom-profile-card {
   position: absolute;
   z-index: 1050;
-  background: #1e242a;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 4px 12px rgba(0, 0, 0, 0.4);
-  color: #f0f6fc;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
-  pointer-events: auto;
-  
-  /* Desktop: Docked floating panel at top-left */
-  top: 16px;
+  bottom: 16px;
   left: 16px;
-  width: 380px;
-  max-height: calc(100vh - 32px);
-}
-
-.fr-card.fr-hidden {
-  transform: translateX(-120%);
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* Card Header */
-.fr-header {
+  right: 16px;
+  margin: 0 auto;
+  max-width: 640px;
+  height: 23vh;
+  max-height: 23vh;
+  min-height: 145px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border: 1px solid #334155;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+  color: #f8fafc;
+  padding: 16px 20px 14px 22px;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 14px 16px 12px;
-  background: #181d22;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.fr-header-left {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.fr-id-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.fr-callsign {
-  font-size: 22px;
-  font-weight: 800;
-  color: #ffcc00;
-  letter-spacing: 0.5px;
-  line-height: 1.1;
-  font-family: 'Inter', sans-serif;
-}
-
-.fr-tag {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
-}
-
-.fr-tag-brand {
-  background: #2d333b;
-  color: #adbac7;
-  border: 1px solid #444c56;
-}
-
-.fr-tag-type {
-  background: rgba(0, 196, 159, 0.15);
-  color: #00e676;
-  border: 1px solid rgba(0, 196, 159, 0.35);
-}
-
-.fr-owner-row {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-top: 2px;
-}
-
-.fr-owner-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: #8b949e;
-  letter-spacing: 0.5px;
-}
-
-.fr-owner-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #ffffff;
-}
-
-.fr-header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.fr-brand-watermark {
-  font-size: 13px;
-  font-weight: 800;
-  color: #8b949e;
-  letter-spacing: -0.5px;
-}
-
-.fr-brand-watermark .gold {
-  color: #ffcc00;
-}
-
-.fr-close-btn {
-  background: #2d333b;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #adbac7;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.fr-close-btn:hover {
-  background: #444c56;
-  color: #ffffff;
-  transform: scale(1.05);
-}
-
-/* Image Banner: 3D Graphical Picture of Auto */
-.fr-image-banner {
-  position: relative;
-  width: 100%;
-  height: 200px;
-  background: #14181d;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.fr-graphic-display {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at center, #1f2730 0%, #111519 100%);
-}
-
-.fr-model-viewer {
-  width: 100%;
-  height: 100%;
-  --poster-color: transparent;
-  background-color: transparent;
-  outline: none;
-  cursor: grab;
-}
-
-.fr-model-viewer:active {
-  cursor: grabbing;
-}
-
-.fr-graphic-img {
-  max-width: 160px;
-  max-height: 180px;
-  object-fit: contain;
-  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.7));
-  transition: transform 0.3s ease;
-}
-
-.fr-graphic-img:hover {
-  transform: scale(1.05);
-}
-
-.fr-banner-overlay {
-  position: absolute;
-  bottom: 8px;
-  left: 12px;
-  right: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  pointer-events: none;
-}
-
-.fr-carousel-dots {
-  display: flex;
-  gap: 6px;
+  box-sizing: border-box;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
   pointer-events: auto;
 }
 
-.fr-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.35);
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  transition: all 0.2s;
+.fr-card.fr-hidden,
+.compact-driver-card.fr-hidden,
+.custom-profile-card.fr-hidden {
+  transform: translateY(150%) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
-.fr-dot.active {
-  background: #ffcc00;
-  transform: scale(1.25);
-  box-shadow: 0 0 6px rgba(255, 204, 0, 0.6);
-}
-
-.fr-credit-tag {
-  background: rgba(13, 17, 23, 0.75);
-  backdrop-filter: blur(4px);
-  padding: 3px 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 10px;
-  font-weight: 500;
-  color: #8b949e;
-}
-
-/* Toto Model Strip */
-.fr-model-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  background: #181d22;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.fr-model-pill-label {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.8px;
-  color: #ffcc00;
-  background: rgba(255, 204, 0, 0.12);
-  padding: 3px 6px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 204, 0, 0.3);
-  text-transform: uppercase;
-  flex-shrink: 0;
-}
-
-.fr-model-pill-val {
-  font-size: 13px;
-  font-weight: 700;
-  color: #f0f6fc;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Telemetry Split Card (Flightradar24 GOP->CCU Style) */
-.fr-telemetry-split {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  background: #1e242a;
-}
-
-.fr-split-box {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.fr-box-left {
-  text-align: left;
-}
-
-.fr-box-right {
-  text-align: right;
-}
-
-.fr-box-code {
-  font-size: 26px;
-  font-weight: 900;
-  color: #ffffff;
-  letter-spacing: 0.5px;
-  line-height: 1;
-}
-
-.fr-box-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #ffcc00;
-  margin-top: 4px;
-}
-
-.fr-box-sub {
-  font-size: 9px;
-  font-weight: 500;
-  color: #8b949e;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-top: 2px;
-}
-
-.fr-split-center {
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.fr-center-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: #2d333b;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
-}
-
-/* Telemetry Matrix Grid */
-.fr-grid-details {
-  padding: 10px 16px;
-  background: #181d22;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.fr-grid-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 4px 0;
-}
-
-.fr-grid-cell {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.fr-cell-label {
-  font-size: 9px;
-  font-weight: 700;
-  color: #8b949e;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-.fr-cell-value {
-  font-size: 12px;
-  font-weight: 700;
-  color: #f0f6fc;
-  margin-top: 2px;
-}
-
-.fr-cell-value.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-.text-green {
-  color: #00e676 !important;
-}
-
-/* Flight Track Progress Bar */
-.fr-track-container {
-  padding: 10px 16px;
-  background: #1e242a;
-}
-
-.fr-track-bar {
-  position: relative;
-  width: 100%;
-  height: 4px;
-  background: #2d333b;
-  border-radius: 2px;
-  overflow: visible;
-}
-
-.fr-track-fill {
+/* Left Accent Strip (Linear Gradient #38bdf8 to #818cf8) */
+.card-accent-bar {
   position: absolute;
   left: 0;
   top: 0;
-  height: 100%;
-  width: 65%;
-  background: linear-gradient(90deg, #ff9800, #ffcc00);
-  border-radius: 2px;
-  transition: width 0.5s ease;
+  bottom: 0;
+  width: 6px;
+  border-radius: 16px 0 0 16px;
+  background: linear-gradient(180deg, #38bdf8 0%, #818cf8 100%);
 }
 
-.fr-track-icon {
-  position: absolute;
-  top: 50%;
-  left: 65%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: left 0.5s ease;
-}
-
-/* Action Buttons Footer */
-.fr-actions-bar {
-  display: flex;
-  gap: 8px;
-  padding: 12px 16px;
-  background: #181d22;
-}
-
-.fr-btn {
+.card-main-content {
   flex: 1;
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+/* TOP ROW: Driver & Toto No Badge + Close Button */
+.card-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.driver-info-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.card-label {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.driver-name {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.3px;
+}
+
+.card-top-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* VEHICLE NUMBER BADGE */
+.toto-no-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0f172a;
+  border: 1px dashed #0284c7;
+  border-radius: 8px;
+  padding: 0 14px;
+  height: 36px;
+  box-sizing: border-box;
+}
+
+.badge-label {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.toto-no {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #38bdf8;
+  white-space: nowrap;
+}
+
+.toto-no.text-null {
+  color: #64748b;
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* Close Button */
+.card-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 9px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
-  border: none;
+  transition: all 0.2s ease;
+  padding: 0;
 }
 
-.fr-btn-primary {
-  background: #ffcc00;
-  color: #000000;
-}
-
-.fr-btn-primary:hover {
-  background: #ffd633;
-}
-
-.fr-btn-secondary {
-  background: #2d333b;
-  color: #f0f6fc;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.fr-btn-secondary:hover {
-  background: #373e47;
-}
-
-.fr-btn-ghost {
-  background: transparent;
-  color: #8b949e;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.fr-btn-ghost:hover {
-  background: #2d333b;
+.card-close-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
   color: #ffffff;
+}
+
+/* Horizontal Divider Line */
+.card-divider-line {
+  width: 100%;
+  height: 1px;
+  background: #334155;
+  margin: 6px 0;
+}
+
+/* BOTTOM ROW: TELEMETRY METRICS (SPEED, HEADING, SIGNAL & PING) */
+.card-metrics-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 2px;
+}
+
+.metric-col {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.metric-icon-wrap {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.metric-text-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.card-value {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f8fafc;
+  white-space: nowrap;
+}
+
+.sub-text {
+  font-size: 12px;
+  font-weight: 400;
+  color: #94a3b8;
+}
+
+.status-text {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #10b981;
+  white-space: nowrap;
+}
+
+.status-text.idle {
+  color: #f59e0b;
+}
+
+.status-text.offline {
+  color: #ef4444;
+}
+
+/* Signal Dot Indicator */
+.signal-dot-ring {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(16, 185, 129, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.signal-dot-inner {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+.signal-dot-ring.idle {
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.signal-dot-ring.idle .signal-dot-inner {
+  background: #f59e0b;
+}
+
+.signal-dot-ring.offline {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.signal-dot-ring.offline .signal-dot-inner {
+  background: #ef4444;
 }
 
 /* Dark Map Style Filter for Tile Layer (Zero API Key required) */
@@ -1082,23 +892,49 @@ body.has-selected-vehicle .fab-locate-btn {
 
 /* Mobile Responsive Adjustments */
 @media (max-width: 640px) {
+  .custom-profile-card,
+  .compact-driver-card,
   .fr-card {
-    top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    border-radius: 20px 20px 0 0;
-    max-height: 85vh;
-    border-bottom: none;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    padding: 12px 14px 10px 18px;
+    height: 23vh;
+    max-height: 23vh;
+    min-height: 135px;
+    border-radius: 14px;
   }
-
-  .fr-card.fr-hidden {
-    transform: translateY(120%);
+  .driver-name {
+    font-size: 18px;
   }
-
-  .fr-image-banner {
-    height: 180px;
+  .toto-no-badge {
+    height: 32px;
+    padding: 0 8px;
+    gap: 6px;
+  }
+  .toto-no {
+    font-size: 12.5px;
+  }
+  .badge-label {
+    font-size: 9px;
+  }
+  .card-label {
+    font-size: 9.5px;
+    letter-spacing: 1px;
+  }
+  .card-value {
+    font-size: 14px;
+  }
+  .status-text {
+    font-size: 13px;
+  }
+  .metric-col {
+    gap: 8px;
+  }
+  .metric-icon-wrap {
+    width: 26px;
+    height: 26px;
   }
 }
 
@@ -2580,6 +2416,96 @@ input:checked+.slider-toggle:before {
 
 .telemetry-val.off {
   color: #ef4444;
+}
+
+/* GPS Blocked Guidance Alert */
+.gps-blocked-alert {
+  margin-top: 14px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.gps-blocked-alert.hidden {
+  display: none !important;
+}
+
+.alert-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.alert-body {
+  flex: 1;
+}
+
+.alert-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: #ef4444;
+  margin-bottom: 4px;
+}
+
+.alert-text {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+.alert-steps {
+  font-size: 11px;
+  color: #f8fafc;
+  background: rgba(10, 15, 25, 0.6);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.4;
+}
+
+.alert-steps strong {
+  color: #ffcc00;
+}
+
+.alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn-alert-action {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-alert-action:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #ffffff;
+}
+
+.btn-alert-action.secondary {
+  background: rgba(255, 204, 0, 0.15);
+  border-color: rgba(255, 204, 0, 0.4);
+  color: #ffcc00;
+}
+
+.btn-alert-action.secondary:hover {
+  background: rgba(255, 204, 0, 0.25);
 }
 
 .btn-warning-outline {

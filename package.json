@@ -1,8 +1,8 @@
 {
-  "name": "auto-24",
+  "name": "autoradar18",
   "version": "1.0.0",
   "private": true,
-  "description": "Auto 24 - Live Driver Location Tracking Platform",
+  "description": "AutoRadar18 - Live Driver Location Tracking Platform",
   "scripts": {
     "start": "node backend/src/server.js",
     "dev": "npm --prefix backend run dev",
@@ -11,6 +11,7 @@
     "driver": "npm --prefix driver-app start",
     "viewer": "npm --prefix viewer-app start",
     "approve": "npm --prefix backend run approve",
+    "clear-drivers": "node backend/scripts/clear-drivers.js",
     "simulate": "npm --prefix backend run simulate",
     "generate-secrets": "npm --prefix backend run generate-secrets",
     "tunnel": "npx cloudflared tunnel --url http://localhost:3000",
