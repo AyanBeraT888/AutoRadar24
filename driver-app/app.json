@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "AutoRadar18 Driver",
-    "slug": "autoradar18-driver",
+    "name": "AutoRadar18",
+    "slug": "autoradar18",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "android": {
-      "package": "com.autoradar18.driver",
+      "package": "com.autoradar18.app",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

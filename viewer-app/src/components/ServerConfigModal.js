@@ -45,7 +45,7 @@ export default function ServerConfigModal({ visible, currentUrl, onClose, onSave
           </View>
 
           <Text style={styles.desc}>
-            Specify the Auto 24 backend server URL to connect this viewer app.
+            Specify the AutoRadar18 backend server URL to connect this app.
           </Text>
 
           <TextInput

@@ -342,7 +342,7 @@ export default function App() {
 
                 <Text style={styles.fallbackHeading}>Radar Signal Interrupted</Text>
                 <Text style={styles.fallbackSubtext}>
-                  Unable to establish a live telemetry connection with the Auto 24 backend.
+                  Unable to establish a live telemetry connection with the AutoRadar18 backend.
                 </Text>
 
                 <View style={styles.fallbackDiagBox}>

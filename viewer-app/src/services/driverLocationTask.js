@@ -180,7 +180,7 @@ export async function startTracking() {
           showsBackgroundLocationIndicator: true,
           pausesLocationUpdatesAutomatically: false,
           foregroundService: {
-            notificationTitle: 'Auto 24 Driver - Active On-Duty',
+            notificationTitle: 'AutoRadar18 - Active On-Duty',
             notificationBody: 'Broadcasting live vehicle GPS & sensor telemetry',
             notificationColor: '#FFCC00',
             killServiceOnDestroy: false,

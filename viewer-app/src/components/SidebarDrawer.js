@@ -69,7 +69,7 @@ export default function SidebarDrawer({
           setLocationPerm(false);
           Alert.alert(
             'Location Permission Required',
-            'Precise location was previously declined or blocked. Open your device settings to allow location access so Auto 24 can locate nearby vehicles.',
+            'Precise location was previously declined or blocked. Open your device settings to allow location access so AutoRadar18 can locate nearby vehicles.',
             [
               { text: 'Cancel', style: 'cancel' },
               { text: 'Open Settings', onPress: () => Linking.openSettings() },

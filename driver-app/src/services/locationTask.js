@@ -166,7 +166,7 @@ export async function startTracking() {
     pausesLocationUpdatesAutomatically: false, // Prevents OS from pausing GPS when idle or stopped
     // Android Foreground Service Configuration
     foregroundService: {
-      notificationTitle: 'AutoRadar18 Driver — Active On-Duty',
+      notificationTitle: 'AutoRadar18 — Active On-Duty',
       notificationBody: 'Broadcasting live vehicle GPS & sensor telemetry',
       notificationColor: '#FFCC00',
       killServiceOnDestroy: false, // Keeps service running even if app is swiped away
