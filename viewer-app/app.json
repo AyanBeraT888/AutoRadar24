@@ -19,7 +19,12 @@
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
-        "INTERNET"
+        "INTERNET",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "plugins": [
@@ -42,6 +47,12 @@
           "backgroundColor": "#14181D"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e94195f2-33aa-417d-b8fc-24d5f18df831"
+      }
+    },
+    "owner": "ayanberat888s-team"
   }
 }

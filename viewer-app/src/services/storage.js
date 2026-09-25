@@ -17,25 +17,15 @@ const KEYS = {
   ACTIVE_MODE: '@auto24_active_mode', // 'passenger' | 'driver'
 };
 
+export const PRODUCTION_SERVER_URL = 'https://autoradar-24-5e28a.containers.snapdeploy.app';
+
 function resolveDefaultServerUrl() {
   if (process.env.EXPO_PUBLIC_API_URL && process.env.EXPO_PUBLIC_API_URL.trim()) {
     return process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '');
   }
 
-  // Detect host machine IP when running on physical device in Expo Go / local network
-  const hostUri =
-    Constants.expoConfig?.hostUri ||
-    Constants.manifest2?.extra?.expoGo?.debuggerHost ||
-    Constants.manifest?.debuggerHost;
-
-  if (hostUri) {
-    const hostIp = hostUri.split(':')[0];
-    if (hostIp && hostIp !== 'localhost' && hostIp !== '127.0.0.1') {
-      return `http://${hostIp}:3000`;
-    }
-  }
-
-  return Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
+  // Unified production server across web and mobile
+  return PRODUCTION_SERVER_URL;
 }
 
 export const DEFAULT_SERVER_URL = resolveDefaultServerUrl();

@@ -7,28 +7,12 @@ import Constants from 'expo-constants';
 import { saveAuthToken, getAuthToken } from './storage';
 
 function getDefaultBaseUrl() {
-  // 1. Build-time environment variable (e.g. Cloudflare Tunnel or Render URL)
   if (process.env.EXPO_PUBLIC_API_URL && process.env.EXPO_PUBLIC_API_URL.trim()) {
     return process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '');
   }
 
-  // 2. Auto-detect host machine LAN IP when running in Expo Go on physical device
-  const hostUri = Constants.expoConfig?.hostUri 
-    || Constants.manifest2?.extra?.expoClient?.hostUri 
-    || Constants.manifest?.debuggerHost;
-
-  if (hostUri) {
-    const host = hostUri.split(':')[0];
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      return `http://${host}:3000`;
-    }
-  }
-
-  // 3. Fallback: Android emulator uses 10.0.2.2, desktop/iOS simulator uses localhost
-  return Platform.select({
-    android: 'http://10.0.2.2:3000',
-    default: 'http://localhost:3000',
-  });
+  // Unified production server across web and mobile
+  return 'https://autoradar-24-5e28a.containers.snapdeploy.app';
 }
 
 let customBaseUrl = getDefaultBaseUrl();
