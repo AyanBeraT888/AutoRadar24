@@ -106,7 +106,7 @@ function getEffectiveDriverPayload(driver, jammedDriverIds = new Set()) {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'Auto 24 Backend', timestamp: Date.now() });
+  res.json({ status: 'ok', service: 'AutoRadar18 Backend', timestamp: Date.now() });
 });
 
 /**
